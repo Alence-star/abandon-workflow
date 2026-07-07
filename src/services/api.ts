@@ -6,6 +6,7 @@ import type {
   WordbookEntry,
   DateGroup,
   UserSession,
+  RuntimePaths,
 } from "../types";
 
 // ===== Translation =====
@@ -99,6 +100,10 @@ export async function getConfig(key: string): Promise<string | null> {
 
 export async function setConfig(key: string, value: string): Promise<void> {
   return invoke<void>("set_config", { key, value });
+}
+
+export async function getRuntimePaths(): Promise<RuntimePaths> {
+  return invoke<RuntimePaths>("get_runtime_paths");
 }
 
 // ===== Auth =====

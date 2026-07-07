@@ -67,6 +67,7 @@ pub fn run() {
             commands::tts::play_british_pronunciation,
             commands::hotkey::get_selected_text,
             commands::config::get_config,
+            commands::config::get_runtime_paths,
             commands::config::set_config,
             commands::auth::register_user,
             commands::auth::login_user,

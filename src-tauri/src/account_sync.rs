@@ -66,6 +66,31 @@ fn sync_file_path(base_dir: PathBuf, username: &str) -> PathBuf {
     path
 }
 
+pub fn resolve_sync_file_path(
+    conn: &Connection,
+    username: &str,
+) -> Result<Option<PathBuf>, String> {
+    let Some(base_dir) = sync_dir(conn)? else {
+        return Ok(None);
+    };
+
+    Ok(Some(sync_file_path(base_dir, username)))
+}
+
+pub fn resolve_current_user_sync_file(conn: &Connection) -> Result<Option<PathBuf>, String> {
+    let Some(user_id) = config::get_current_user_id(conn)
+        .map_err(|e| format!("读取当前账号失败: {}", e))?
+    else {
+        return Ok(None);
+    };
+
+    let Some(username) = lookup_username(conn, user_id)? else {
+        return Ok(None);
+    };
+
+    resolve_sync_file_path(conn, &username)
+}
+
 fn load_wordbook_snapshot(conn: &Connection, user_id: i64) -> Result<Vec<SyncWordbookEntry>, String> {
     let mut stmt = conn
         .prepare_cached(
@@ -107,20 +132,22 @@ pub fn lookup_username(conn: &Connection, user_id: i64) -> Result<Option<String>
 }
 
 pub fn push_user_snapshot(conn: &Connection, user_id: i64, username: &str) -> Result<bool, String> {
-    let Some(base_dir) = sync_dir(conn)? else {
+    let Some(target_path) = resolve_sync_file_path(conn, username)? else {
         return Ok(false);
     };
 
-    fs::create_dir_all(&base_dir).map_err(|e| format!("创建同步目录失败: {}", e))?;
-    let target_path = sync_file_path(base_dir, username);
+    if let Some(base_dir) = target_path.parent() {
+        fs::create_dir_all(base_dir).map_err(|e| format!("创建同步目录失败: {}", e))?;
+    }
+
     let payload = SyncPayload {
         username: username.to_string(),
         exported_at: Utc::now().to_rfc3339(),
         wordbook: load_wordbook_snapshot(conn, user_id)?,
     };
 
-    let json = serde_json::to_string_pretty(&payload)
-        .map_err(|e| format!("生成同步文件失败: {}", e))?;
+    let json =
+        serde_json::to_string_pretty(&payload).map_err(|e| format!("生成同步文件失败: {}", e))?;
 
     let temp_path = target_path.with_extension("json.tmp");
     fs::write(&temp_path, json).map_err(|e| format!("写入同步文件失败: {}", e))?;
@@ -133,11 +160,10 @@ pub fn push_user_snapshot(conn: &Connection, user_id: i64, username: &str) -> Re
 }
 
 pub fn pull_user_snapshot(conn: &Connection, user_id: i64, username: &str) -> Result<bool, String> {
-    let Some(base_dir) = sync_dir(conn)? else {
+    let Some(target_path) = resolve_sync_file_path(conn, username)? else {
         return Ok(false);
     };
 
-    let target_path = sync_file_path(base_dir, username);
     if !target_path.exists() {
         return Ok(false);
     }

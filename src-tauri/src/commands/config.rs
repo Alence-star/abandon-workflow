@@ -1,9 +1,18 @@
 use crate::{account_sync, AppState};
 use rusqlite::{params, Connection, OptionalExtension};
+use serde::Serialize;
 use tauri::State;
 
 pub const CURRENT_USER_KEY: &str = "current_user_id";
 pub const SYNC_DIR_KEY: &str = "sync_dir";
+
+#[derive(Debug, Serialize)]
+pub struct RuntimePaths {
+    pub data_dir: String,
+    pub database_path: String,
+    pub sync_dir: Option<String>,
+    pub sync_file_path: Option<String>,
+}
 
 fn is_global_only_key(key: &str) -> bool {
     matches!(key, CURRENT_USER_KEY | SYNC_DIR_KEY)
@@ -100,4 +109,26 @@ pub async fn set_config(
     }
 
     Ok(())
+}
+
+#[tauri::command]
+pub async fn get_runtime_paths(state: State<'_, AppState>) -> Result<RuntimePaths, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let database_path = db.path().to_string_lossy().to_string();
+    let data_dir = db
+        .path()
+        .parent()
+        .map(|path| path.to_string_lossy().to_string())
+        .unwrap_or_else(|| database_path.clone());
+    let sync_dir = get_global_config_value(db.conn(), SYNC_DIR_KEY)
+        .map_err(|e| format!("读取同步目录失败: {}", e))?;
+    let sync_file_path = account_sync::resolve_current_user_sync_file(db.conn())?
+        .map(|path| path.to_string_lossy().to_string());
+
+    Ok(RuntimePaths {
+        data_dir,
+        database_path,
+        sync_dir,
+        sync_file_path,
+    })
 }

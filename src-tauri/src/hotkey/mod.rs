@@ -1,10 +1,11 @@
 #[cfg(target_os = "macos")]
 use std::ffi::CStr;
+use std::io::Write;
 #[cfg(target_os = "macos")]
 use std::os::raw::c_char;
 use std::process::{Command, Stdio};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::Manager;
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut};
@@ -58,6 +59,70 @@ extern "C" {
 }
 
 #[cfg(target_os = "macos")]
+unsafe fn copy_attribute_value(
+    element: AXUIElementRef,
+    attribute_name: &'static [u8],
+) -> Result<CFTypeRef, i32> {
+    let attribute = CFStringCreateWithCString(
+        K_CF_ALLOCATOR_DEFAULT,
+        attribute_name.as_ptr() as *const c_char,
+        K_CF_STRING_ENCODING_UTF8,
+    );
+    if attribute.is_null() {
+        return Err(-99998);
+    }
+
+    let mut value: CFTypeRef = std::ptr::null();
+    let result = AXUIElementCopyAttributeValue(element, attribute, &mut value);
+    CFRelease(attribute);
+
+    if result != 0 || value.is_null() {
+        Err(result)
+    } else {
+        Ok(value)
+    }
+}
+
+#[cfg(target_os = "macos")]
+unsafe fn cfstring_to_string(value: CFTypeRef) -> Option<String> {
+    let length = CFStringGetLength(value);
+    if length <= 0 {
+        return None;
+    }
+
+    let utf8_len = length * 4 + 1;
+    let mut buffer: Vec<u8> = vec![0u8; utf8_len as usize];
+    let success = CFStringGetCString(
+        value,
+        buffer.as_mut_ptr() as *mut c_char,
+        utf8_len,
+        K_CF_STRING_ENCODING_UTF8,
+    );
+
+    if success == 0 {
+        return None;
+    }
+
+    let text = CStr::from_ptr(buffer.as_ptr() as *const c_char)
+        .to_string_lossy()
+        .trim()
+        .to_string();
+
+    (!text.is_empty()).then_some(text)
+}
+
+#[cfg(target_os = "macos")]
+unsafe fn read_string_attribute(
+    element: AXUIElementRef,
+    attribute_name: &'static [u8],
+) -> Result<Option<String>, i32> {
+    let value = copy_attribute_value(element, attribute_name)?;
+    let text = cfstring_to_string(value);
+    CFRelease(value);
+    Ok(text)
+}
+
+#[cfg(target_os = "macos")]
 fn get_selected_text_ax_direct() -> (Option<String>, i32) {
     unsafe {
         let system_wide = AXUIElementCreateSystemWide();
@@ -65,77 +130,57 @@ fn get_selected_text_ax_direct() -> (Option<String>, i32) {
             return (None, -99999);
         }
 
-        let attr_focused_app = CFStringCreateWithCString(
-            K_CF_ALLOCATOR_DEFAULT,
-            b"AXFocusedApplication\0".as_ptr() as *const c_char,
-            K_CF_STRING_ENCODING_UTF8,
-        );
-        if attr_focused_app.is_null() {
-            CFRelease(system_wide);
-            return (None, -99998);
+        let focused_app = match copy_attribute_value(system_wide, b"AXFocusedApplication\0") {
+            Ok(value) => value,
+            Err(code) => {
+                CFRelease(system_wide);
+                return (None, code);
+            }
+        };
+
+        let mut last_error = 0;
+        let focused_element =
+            match copy_attribute_value(focused_app as AXUIElementRef, b"AXFocusedUIElement\0") {
+                Ok(value) => Some(value),
+                Err(code) => {
+                    last_error = code;
+                    None
+                }
+            };
+
+        if let Some(element) = focused_element {
+            match read_string_attribute(element as AXUIElementRef, b"AXSelectedText\0") {
+                Ok(Some(text)) => {
+                    CFRelease(element);
+                    CFRelease(focused_app);
+                    CFRelease(system_wide);
+                    return (Some(text), 0);
+                }
+                Ok(None) => {}
+                Err(code) => last_error = code,
+            }
+
+            CFRelease(element);
         }
 
-        let mut focused_app: CFTypeRef = std::ptr::null();
-        let focused_app_result =
-            AXUIElementCopyAttributeValue(system_wide, attr_focused_app, &mut focused_app);
-        CFRelease(attr_focused_app);
-
-        if focused_app_result != 0 || focused_app.is_null() {
-            CFRelease(system_wide);
-            return (None, focused_app_result);
+        match read_string_attribute(focused_app as AXUIElementRef, b"AXSelectedText\0") {
+            Ok(Some(text)) => {
+                CFRelease(focused_app);
+                CFRelease(system_wide);
+                return (Some(text), 0);
+            }
+            Ok(None) => {}
+            Err(code) => {
+                if last_error == 0 {
+                    last_error = code;
+                }
+            }
         }
 
-        let attr_selected_text = CFStringCreateWithCString(
-            K_CF_ALLOCATOR_DEFAULT,
-            b"AXSelectedText\0".as_ptr() as *const c_char,
-            K_CF_STRING_ENCODING_UTF8,
-        );
-        if attr_selected_text.is_null() {
-            CFRelease(focused_app);
-            CFRelease(system_wide);
-            return (None, -99997);
-        }
-
-        let mut selected_text: CFTypeRef = std::ptr::null();
-        let selected_text_result =
-            AXUIElementCopyAttributeValue(focused_app, attr_selected_text, &mut selected_text);
-        CFRelease(attr_selected_text);
         CFRelease(focused_app);
         CFRelease(system_wide);
 
-        if selected_text_result != 0 || selected_text.is_null() {
-            return (None, selected_text_result);
-        }
-
-        let length = CFStringGetLength(selected_text);
-        if length <= 0 {
-            CFRelease(selected_text);
-            return (None, -99996);
-        }
-
-        let utf8_len = length * 4 + 1;
-        let mut buffer: Vec<u8> = vec![0u8; utf8_len as usize];
-        let success = CFStringGetCString(
-            selected_text,
-            buffer.as_mut_ptr() as *mut c_char,
-            utf8_len,
-            K_CF_STRING_ENCODING_UTF8,
-        );
-        CFRelease(selected_text);
-
-        if success == 0 {
-            return (None, -99995);
-        }
-
-        let result = CStr::from_ptr(buffer.as_ptr() as *const c_char)
-            .to_string_lossy()
-            .trim()
-            .to_string();
-        if result.is_empty() {
-            return (None, -99994);
-        }
-
-        (Some(result), 0)
+        (None, if last_error != 0 { last_error } else { -99994 })
     }
 }
 
@@ -187,16 +232,46 @@ fn read_clipboard_text(handle: &tauri::AppHandle) -> String {
         .to_string()
 }
 
+fn write_clipboard_text(handle: &tauri::AppHandle, text: &str) {
+    #[cfg(target_os = "macos")]
+    {
+        let mut command = Command::new("pbcopy");
+        command.env_clear();
+        command.env("LANG", "en_US.UTF-8");
+        command.env("LC_ALL", "en_US.UTF-8");
+        command.stdin(Stdio::piped());
+        command.stdout(Stdio::null());
+        command.stderr(Stdio::null());
+
+        if let Ok(mut child) = command.spawn() {
+            if let Some(mut stdin) = child.stdin.take() {
+                let _ = stdin.write_all(text.as_bytes());
+            }
+            let _ = child.wait();
+        }
+    }
+
+    let _ = handle.clipboard().write_text(text.to_string());
+}
+
 fn restore_clipboard(handle: &tauri::AppHandle, original: &str) {
-    let _ = handle.clipboard().write_text(original.to_string());
+    write_clipboard_text(handle, original);
 }
 
-fn is_new_clipboard_text(current: &str, previous_clipboard: &str) -> bool {
-    !current.is_empty()
-        && (previous_clipboard.trim().is_empty() || current != previous_clipboard.trim())
+fn make_clipboard_marker() -> String {
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|value| value.as_nanos())
+        .unwrap_or_default();
+
+    format!("__ABANDON_SELECTION_MARKER__{}__", timestamp)
 }
 
-fn wait_for_stable_copied_text(handle: &tauri::AppHandle, previous_clipboard: &str) -> String {
+fn is_captured_clipboard_text(current: &str, clipboard_marker: &str) -> bool {
+    !current.is_empty() && current != clipboard_marker.trim()
+}
+
+fn wait_for_stable_copied_text(handle: &tauri::AppHandle, clipboard_marker: &str) -> String {
     let started_at = Instant::now();
     let mut candidate = String::new();
     let mut candidate_changed_at: Option<Instant> = None;
@@ -204,7 +279,7 @@ fn wait_for_stable_copied_text(handle: &tauri::AppHandle, previous_clipboard: &s
     while started_at.elapsed() < CLIPBOARD_CAPTURE_TIMEOUT {
         let current = read_clipboard_text(handle);
 
-        if is_new_clipboard_text(&current, previous_clipboard) {
+        if is_captured_clipboard_text(&current, clipboard_marker) {
             if current != candidate {
                 candidate = current;
                 candidate_changed_at = Some(Instant::now());
@@ -215,13 +290,6 @@ fn wait_for_stable_copied_text(handle: &tauri::AppHandle, previous_clipboard: &s
             {
                 return candidate;
             }
-        } else if !candidate.is_empty()
-            && candidate_changed_at
-                .map(|changed_at| changed_at.elapsed() >= CLIPBOARD_STABLE_DELAY)
-                .unwrap_or(false)
-            && started_at.elapsed() >= CLIPBOARD_MIN_SETTLE_TIME
-        {
-            return candidate;
         }
 
         thread::sleep(CLIPBOARD_POLL_INTERVAL);
@@ -256,14 +324,43 @@ return frontApp"###;
             thread::sleep(Duration::from_millis(180));
         }
 
-        let _ = Command::new("osascript")
-            .args([
-                "-e",
-                "tell application \"System Events\" to keystroke \"c\" using command down",
-            ])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
+        for _ in 0..3 {
+            let applescript = Command::new("osascript")
+                .args([
+                    "-e",
+                    "tell application \"System Events\" to keystroke \"c\" using command down",
+                ])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .map(|status| status.success())
+                .unwrap_or(false);
+
+            if applescript {
+                thread::sleep(Duration::from_millis(180));
+                return;
+            }
+
+            let javascript = Command::new("osascript")
+                .args([
+                    "-l",
+                    "JavaScript",
+                    "-e",
+                    "Application('System Events').keystroke('c', { using: 'command down' })",
+                ])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .map(|status| status.success())
+                .unwrap_or(false);
+
+            if javascript {
+                thread::sleep(Duration::from_millis(180));
+                return;
+            }
+
+            thread::sleep(Duration::from_millis(110));
+        }
     }
 
     #[cfg(target_os = "windows")]
@@ -285,32 +382,46 @@ return frontApp"###;
 
 pub fn capture_selected_text(handle: &tauri::AppHandle) -> Result<String, String> {
     #[cfg(target_os = "macos")]
+    let mut accessibility_denied = false;
+
+    #[cfg(target_os = "macos")]
     {
         let (text, error_code) = get_selected_text_ax_direct();
         if let Some(text) = text {
             return Ok(text);
         }
-        if error_code == K_AX_ERROR_API_DISABLED {
-            eprintln!("[Abandon] Accessibility permission not granted, falling back to clipboard capture");
+
+        accessibility_denied = error_code == K_AX_ERROR_API_DISABLED;
+        if accessibility_denied {
+            eprintln!(
+                "[Abandon] Accessibility permission not granted, falling back to clipboard capture"
+            );
         }
     }
 
     let original_clipboard = read_clipboard_text(handle);
+    let clipboard_marker = make_clipboard_marker();
+    write_clipboard_text(handle, &clipboard_marker);
+
     thread::sleep(SHORTCUT_RELEASE_DELAY);
     copy_selection();
 
-    let copied_text = wait_for_stable_copied_text(handle, &original_clipboard);
+    let copied_text = wait_for_stable_copied_text(handle, &clipboard_marker);
     restore_clipboard(handle, &original_clipboard);
 
     if !copied_text.is_empty() {
         return Ok(copied_text);
     }
 
-    if !original_clipboard.trim().is_empty() {
-        return Ok(original_clipboard);
+    #[cfg(target_os = "macos")]
+    if accessibility_denied {
+        return Err(
+            "未读取到选中文本。请先确认已经选中文本，并在系统设置 > 隐私与安全性 > 辅助功能中允许 Abandon。"
+                .into(),
+        );
     }
 
-    Err("未读取到选中文本，请先选中文本后再按 Ctrl/Cmd+Shift+T。".into())
+    Err("未读取到选中文本，请先确认已经选中文本后再按 Ctrl/Cmd+Shift+T。".into())
 }
 
 pub fn global_shortcut_handler(
@@ -332,16 +443,14 @@ pub fn global_shortcut_handler(
 
     if shortcut == &translate_shortcut {
         let handle = app_handle.clone();
-        thread::spawn(move || {
-            match capture_selected_text(&handle) {
-                Ok(text) => {
-                    show_main_window(&handle);
-                    store_text(&handle, text);
-                }
-                Err(error) => {
-                    show_main_window(&handle);
-                    store_text(&handle, format!("!error:{}", error));
-                }
+        thread::spawn(move || match capture_selected_text(&handle) {
+            Ok(text) => {
+                show_main_window(&handle);
+                store_text(&handle, text);
+            }
+            Err(error) => {
+                show_main_window(&handle);
+                store_text(&handle, format!("!error:{}", error));
             }
         });
         return;

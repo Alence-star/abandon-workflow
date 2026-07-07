@@ -57,6 +57,13 @@ export interface UserSession {
   username: string;
 }
 
+export interface RuntimePaths {
+  data_dir: string;
+  database_path: string;
+  sync_dir: string | null;
+  sync_file_path: string | null;
+}
+
 export type ViewMode =
   | "translate"
   | "word"

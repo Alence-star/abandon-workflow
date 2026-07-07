@@ -121,7 +121,8 @@ h3 {
 .empty-state,
 .guide-card p,
 .asset-meta,
-.release-slot {
+.release-slot,
+.pwa-copy p {
   color: var(--muted);
 }
 
@@ -212,7 +213,8 @@ h3 {
   background: rgba(255, 255, 255, 0.42);
 }
 
-.release-card {
+.release-card,
+.pwa-card {
   padding: 22px;
   border-radius: 24px;
   background: var(--panel-strong);
@@ -307,6 +309,26 @@ h3 {
   line-height: 1.7;
 }
 
+.pwa-card {
+  display: flex;
+  gap: 22px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pwa-copy {
+  max-width: 42rem;
+}
+
+.pwa-copy p {
+  margin: 10px 0 0;
+  line-height: 1.75;
+}
+
+.pwa-actions {
+  margin-top: 0;
+}
+
 .guide-panel {
   padding-bottom: 18px;
 }
@@ -335,7 +357,8 @@ h3 {
     grid-template-columns: 1fr;
   }
 
-  .panel-head {
+  .panel-head,
+  .pwa-card {
     align-items: flex-start;
     flex-direction: column;
   }
@@ -349,7 +372,9 @@ h3 {
   }
 
   .hero,
-  .panel {
+  .panel,
+  .release-card,
+  .pwa-card {
     padding: 22px;
     border-radius: 22px;
   }

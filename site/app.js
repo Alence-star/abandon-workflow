@@ -1,8 +1,3 @@
-const repo = {
-  owner: "Alence-star",
-  name: "abandon-workflow",
-};
-
 const nodes = {
   internalMacos: document.querySelector("#internal-macos"),
   stableRelease: document.querySelector("#stable-release"),
@@ -54,7 +49,8 @@ const assetLabelForMac = (name) => {
   return "macOS";
 };
 
-const pickAssets = (assets, matcher) => assets.filter((asset) => matcher(asset.name.toLowerCase()));
+const pickAssets = (assets, matcher) =>
+  assets.filter((asset) => matcher(asset.name.toLowerCase()));
 
 const buildDownloadButton = (asset) =>
   `<a class="button button-primary" href="${asset.browser_download_url}" target="_blank" rel="noreferrer">下载 ${escapeHtml(
@@ -118,7 +114,6 @@ const renderMacRelease = (node, release, { internal }) => {
   const groupedCards = dmgAssets
     .map((dmgAsset) => {
       const label = assetLabelForMac(dmgAsset.name);
-      const lowerName = dmgAsset.name.toLowerCase();
       const matchingArchive = archiveAssets.find((asset) =>
         label === "Apple Silicon"
           ? /(aarch64|arm64)/i.test(asset.name)
@@ -131,7 +126,7 @@ const renderMacRelease = (node, release, { internal }) => {
           ? /(aarch64|arm64)/i.test(asset.name)
           : label === "Intel Mac"
             ? /(x86_64|x64)/i.test(asset.name)
-            : asset.name.toLowerCase().includes(lowerName.replace(".dmg", ""))
+            : true
       );
 
       return `
@@ -173,14 +168,17 @@ const renderMacRelease = (node, release, { internal }) => {
 
 const renderIosRelease = (node, release) => {
   if (!release) {
-    renderEmpty(node, "还没有上传到 Releases 的 iOS 安装包。后续有 `.ipa` 进入 Release 后，这里会自动显示。");
+    renderEmpty(
+      node,
+      "还没有上传到 Releases 的 iOS 安装包。后续有 `.ipa` 进入 Release 后，这里会自动显示。"
+    );
     return;
   }
 
   const ipaAssets = pickAssets(release.assets, (name) => name.endsWith(".ipa"));
 
   if (ipaAssets.length === 0) {
-    renderEmpty(node, "找到 iOS 相关 Release，但没有 `.ipa` 资产。");
+    renderEmpty(node, "找到了 iOS 相关 Release，但没有 `.ipa` 资产。");
     return;
   }
 
@@ -221,7 +219,7 @@ const renderFailure = (message) => {
   renderEmpty(nodes.iosRelease, message);
 };
 
-const loadReleases = async () => {
+const loadReleases = () => {
   try {
     const payload = window.ABANDON_RELEASE_SNAPSHOT;
     if (!payload || typeof payload !== "object") {
@@ -229,9 +227,12 @@ const loadReleases = async () => {
     }
 
     const releases = Array.isArray(payload.releases) ? payload.releases : [];
-
-    renderMacRelease(nodes.internalMacos, findLatestInternalMacRelease(releases), { internal: true });
-    renderMacRelease(nodes.stableRelease, findLatestStableRelease(releases), { internal: false });
+    renderMacRelease(nodes.internalMacos, findLatestInternalMacRelease(releases), {
+      internal: true,
+    });
+    renderMacRelease(nodes.stableRelease, findLatestStableRelease(releases), {
+      internal: false,
+    });
     renderIosRelease(nodes.iosRelease, findLatestIosRelease(releases));
   } catch (error) {
     console.error(error);

@@ -6,8 +6,9 @@
     <title>Abandon Download Hub</title>
     <meta
       name="description"
-      content="Abandon macOS and iOS package downloads powered by GitHub Releases."
+      content="Abandon macOS、iOS 与手机 PWA 下载入口。"
     />
+    <link rel="icon" href="./favicon.ico" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -26,7 +27,8 @@
           <p class="eyebrow">Abandon Download Hub</p>
           <h1>直接拿最新安装包，不再翻 Actions。</h1>
           <p class="hero-copy">
-            这个页面直接读取 GitHub Releases，优先展示最新的 macOS 内测包，并保留正式发布版和 iOS 包入口。
+            这个页面直接读取 GitHub Releases，优先展示最新的 macOS 内测包，并补上一个可安装到手机桌面的
+            PWA 入口。
           </p>
           <div class="hero-actions">
             <a
@@ -45,6 +47,9 @@
             >
               打开代码仓库
             </a>
+            <a class="button button-secondary" href="./pwa/">
+              打开手机版 PWA
+            </a>
           </div>
         </section>
 
@@ -54,7 +59,7 @@
               <p class="panel-kicker">Latest Internal Build</p>
               <h2>macOS 内测安装包</h2>
             </div>
-            <p class="panel-note">Apple 芯片和 Intel 两套都会显示。</p>
+            <p class="panel-note">Apple Silicon 和 Intel 两套都会显示。</p>
           </div>
           <div id="internal-macos" class="release-slot loading">
             正在读取最新内测包...
@@ -87,6 +92,32 @@
           </div>
         </section>
 
+        <section class="panel">
+          <div class="panel-head compact">
+            <div>
+              <p class="panel-kicker">Mobile PWA</p>
+              <h2>手机桌面版</h2>
+            </div>
+            <p class="panel-note">可添加到 iPhone / Android 桌面，并以独立窗口运行。</p>
+          </div>
+
+          <article class="pwa-card">
+            <div class="pwa-copy">
+              <h3>Abandon Pocket</h3>
+              <p>
+                这是面向手机的轻量版网页应用，支持输入 API Key 后直接翻译、查单词、朗读，并以
+                PWA 形式安装到桌面。它的数据保存在当前手机浏览器里，不会直接读取桌面端本地数据库。
+              </p>
+            </div>
+            <div class="hero-actions pwa-actions">
+              <a class="button button-primary" href="./pwa/">打开 PWA</a>
+              <a class="button button-secondary" href="./pwa/#install-guide">
+                查看安装说明
+              </a>
+            </div>
+          </article>
+        </section>
+
         <section class="panel guide-panel">
           <div class="panel-head compact">
             <div>
@@ -104,8 +135,8 @@
               <p>老款 Intel Mac 请选择 `x64` 或 `x86_64` 的 DMG。</p>
             </article>
             <article class="guide-card">
-              <h3>iPhone / iPad</h3>
-              <p>iOS 的 `IPA` 只能安装到已纳入 Apple 描述文件的测试设备。</p>
+              <h3>iPhone / Android</h3>
+              <p>手机端优先用 PWA。若后续提供 `.ipa`，仍需符合 Apple 测试设备安装条件。</p>
             </article>
           </div>
         </section>

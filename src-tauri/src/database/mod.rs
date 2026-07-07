@@ -9,6 +9,7 @@ const DB_FILE_NAME: &str = "abandon.db";
 
 pub struct Database {
     conn: Connection,
+    path: PathBuf,
 }
 
 impl Database {
@@ -23,7 +24,10 @@ impl Database {
         eprintln!("[Abandon] Database path: {}", db_path.display());
         let conn = Connection::open(&db_path)?;
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")?;
-        let db = Database { conn };
+        let db = Database {
+            conn,
+            path: db_path,
+        };
         db.run_migrations()?;
         Ok(db)
     }
@@ -135,5 +139,9 @@ impl Database {
 
     pub fn conn(&self) -> &Connection {
         &self.conn
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
     }
 }
