@@ -219,9 +219,23 @@ const renderFailure = (message) => {
   renderEmpty(nodes.iosRelease, message);
 };
 
-const loadReleases = () => {
+const readReleaseSnapshot = async () => {
+  if (window.location.protocol !== "file:") {
+    const response = await fetch(`./data/releases.json?ts=${Date.now()}`, {
+      cache: "no-store",
+    });
+
+    if (response.ok) {
+      return response.json();
+    }
+  }
+
+  return window.ABANDON_RELEASE_SNAPSHOT;
+};
+
+const loadReleases = async () => {
   try {
-    const payload = window.ABANDON_RELEASE_SNAPSHOT;
+    const payload = await readReleaseSnapshot();
     if (!payload || typeof payload !== "object") {
       throw new Error("Missing release snapshot");
     }

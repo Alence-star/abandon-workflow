@@ -72,6 +72,10 @@ jobs:
               path.join(process.cwd(), "site", "data", "releases.js"),
               `window.ABANDON_RELEASE_SNAPSHOT = ${JSON.stringify(payload, null, 2)};\n`
             );
+            fs.writeFileSync(
+              path.join(process.cwd(), "site", "data", "releases.json"),
+              `${JSON.stringify(payload, null, 2)}\n`
+            );
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
