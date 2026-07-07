@@ -1,0 +1,28 @@
+[package]
+name = "abandon"
+version = "1.0.0"
+description = "Abandon - English learning assistant"
+authors = ["you"]
+edition = "2021"
+
+[lib]
+name = "abandon_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-clipboard-manager = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-updater = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rusqlite = { version = "0.31", features = ["bundled"] }
+reqwest = { version = "0.12", features = ["json"] }
+tokio = { version = "1", features = ["full"] }
+chrono = { version = "0.4", features = ["serde"] }
+argon2 = "0.5"
+rand_core = { version = "0.6", features = ["getrandom"] }

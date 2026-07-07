@@ -1,0 +1,238 @@
+use std::process::{Command, Stdio};
+use std::thread;
+use std::time::Duration;
+use tauri::Manager;
+use tauri_plugin_clipboard_manager::ClipboardExt;
+use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut};
+
+use crate::PendingTranslation;
+
+pub fn global_shortcut_handler(
+    app_handle: &tauri::AppHandle,
+    shortcut: &Shortcut,
+    event: tauri_plugin_global_shortcut::ShortcutEvent,
+) {
+    if event.state != tauri_plugin_global_shortcut::ShortcutState::Pressed {
+        return;
+    }
+
+    #[cfg(target_os = "macos")]
+    let mods = Modifiers::SUPER | Modifiers::SHIFT;
+    #[cfg(not(target_os = "macos"))]
+    let mods = Modifiers::CONTROL | Modifiers::SHIFT;
+
+    let translate_shortcut = Shortcut::new(Some(mods), Code::KeyT);
+    let toggle_shortcut = Shortcut::new(Some(mods), Code::KeyY);
+
+    if shortcut == &translate_shortcut {
+        eprintln!("[Abandon] [Shortcut] translate triggered");
+
+        let handle = app_handle.clone();
+
+        thread::spawn(move || {
+            let saved = save_clipboard(&handle);
+            eprintln!("[Abandon] saved clipboard ({} chars)", saved.len());
+            copy_selection();
+            thread::sleep(Duration::from_millis(800));
+
+            let mut text = read_clipboard(&handle, &saved);
+            let mut trimmed = text.trim().to_string();
+            eprintln!("[Abandon] read clipboard ({} chars), matches saved: {}", trimmed.len(), trimmed == saved.trim());
+
+            // Retry up to 3 times if text is empty or still matches saved clipboard
+            let mut retries = 0;
+            while (trimmed.is_empty() || (trimmed == saved.trim() && trimmed.len() > 3)) && retries < 3 {
+                retries += 1;
+                eprintln!("[Abandon] retry #{}", retries);
+                thread::sleep(Duration::from_millis(500));
+                text = read_clipboard(&handle, &saved);
+                trimmed = text.trim().to_string();
+                eprintln!("[Abandon] retry read ({} chars)", trimmed.len());
+            }
+
+            if !trimmed.is_empty() {
+                let state = handle.state::<PendingTranslation>();
+                if let Ok(mut guard) = state.text.lock() {
+                    *guard = Some(trimmed.clone());
+                    eprintln!("[Abandon] stored in PendingTranslation ({} chars)", trimmed.len());
+                }
+                restore_clipboard(&handle, &saved);
+            } else {
+                eprintln!("[Abandon] clipboard empty, not storing");
+            }
+
+            if let Some(window) = handle.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+                eprintln!("[Abandon] window shown");
+            }
+        });
+
+    } else if shortcut == &toggle_shortcut {
+        eprintln!("[Abandon] [Shortcut] toggle");
+        if let Some(window) = app_handle.get_webview_window("main") {
+            if window.is_visible().unwrap_or(false) {
+                let _ = window.hide();
+            } else {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }
+    }
+}
+
+pub fn register_shortcuts(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    use tauri_plugin_global_shortcut::GlobalShortcutExt;
+    let shortcuts_handler = app.global_shortcut();
+
+    #[cfg(target_os = "macos")]
+    let mods = Modifiers::SUPER | Modifiers::SHIFT;
+    #[cfg(not(target_os = "macos"))]
+    let mods = Modifiers::CONTROL | Modifiers::SHIFT;
+
+    shortcuts_handler.register(Shortcut::new(Some(mods), Code::KeyT))?;
+    shortcuts_handler.register(Shortcut::new(Some(mods), Code::KeyY))?;
+
+    eprintln!("[Abandon] Shortcuts registered");
+    Ok(())
+}
+
+fn save_clipboard(app: &tauri::AppHandle) -> String {
+    app.clipboard().read_text().unwrap_or_default()
+}
+
+fn restore_clipboard(app: &tauri::AppHandle, text: &str) {
+    if !text.is_empty() {
+        let _ = app.clipboard().write_text(text.to_string());
+    }
+}
+
+fn read_clipboard(app: &tauri::AppHandle, _saved: &str) -> String {
+    // Use pbpaste with explicit UTF-8 locale to avoid garbled Chinese text
+    #[cfg(target_os = "macos")]
+    {
+        let mut cmd = Command::new("pbpaste");
+        cmd.env_clear();
+        cmd.env("LANG", "en_US.UTF-8");
+        cmd.env("LC_ALL", "en_US.UTF-8");
+        cmd.stdout(Stdio::piped());
+        cmd.stderr(Stdio::null());
+        if let Ok(out) = cmd.output() {
+            if out.status.success() {
+                let text = String::from_utf8_lossy(&out.stdout).to_string();
+                let trimmed = text.trim().to_string();
+                if !trimmed.is_empty() {
+                    return trimmed;
+                }
+            }
+        }
+    }
+
+    // Fallback: use osascript  which handles encoding via system
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(out) = Command::new("osascript")
+            .args(["-e", "get the clipboard"])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .output()
+        {
+            if out.status.success() {
+                let text = String::from_utf8_lossy(&out.stdout).to_string();
+                let trimmed = text.trim().to_string();
+                if !trimmed.is_empty() {
+                    return trimmed;
+                }
+            }
+        }
+    }
+
+    // Last resort: clipboard plugin
+    let text = app.clipboard().read_text().unwrap_or_default();
+    let trimmed = text.trim().to_string();
+    if !trimmed.is_empty() {
+        return trimmed;
+    }
+
+    String::new()
+}
+
+fn copy_selection() {
+    #[cfg(target_os = "macos")]
+    {
+        // Step 1: Get the frontmost app name
+        let front_app_script = r###"tell application "System Events"
+    set frontApp to name of first application process whose frontmost is true
+end tell
+return frontApp"###;
+        let front_app = Command::new("osascript")
+            .args(["-e", front_app_script])
+            .output()
+            .ok()
+            .and_then(|o| {
+                if o.status.success() {
+                    Some(String::from_utf8_lossy(&o.stdout).trim().to_string())
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_default();
+
+        if !front_app.is_empty() {
+            eprintln!("[Abandon] copy_selection: frontmost app = {}", front_app);
+
+            // Step 2: Activate the frontmost app via AppleScript
+            let activate_script = format!("tell application \"{}\" to activate", front_app);
+            let _ = Command::new("osascript")
+                .args(["-e", &activate_script])
+                .output();
+
+            thread::sleep(Duration::from_millis(300));
+
+            // Step 3: Send Cmd+C to the frontmost app
+            for _ in 0..3 {
+                let r1 = Command::new("osascript")
+                    .args(["-e", "tell application \"System Events\" to keystroke \"c\" using command down"])
+                    .output();
+                if r1.ok().and_then(|o| o.status.success().then_some(())).is_some() {
+                    thread::sleep(Duration::from_millis(200));
+                    return;
+                }
+                let r2 = Command::new("osascript")
+                    .args(["-l", "JavaScript", "-e",
+                        "Application('System Events').keystroke('c', {using: 'command down'})"])
+                    .output();
+                if r2.ok().and_then(|o| o.status.success().then_some(())).is_some() {
+                    thread::sleep(Duration::from_millis(200));
+                    return;
+                }
+                thread::sleep(Duration::from_millis(100));
+            }
+        } else {
+            eprintln!("[Abandon] copy_selection: could not detect frontmost app, trying direct keystroke");
+            // Fallback: try direct keystroke
+            for _ in 0..3 {
+                let r = Command::new("osascript")
+                    .args(["-e", "tell application \"System Events\" to keystroke \"c\" using command down"])
+                    .output();
+                if r.ok().and_then(|o| o.status.success().then_some(())).is_some() {
+                    thread::sleep(Duration::from_millis(200));
+                    return;
+                }
+                thread::sleep(Duration::from_millis(100));
+            }
+        }
+        eprintln!("[Abandon] copy_selection FAILED after all attempts");
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        for _ in 0..3 {
+            let _ = Command::new("powershell")
+                .args(["-Command", "[System.Windows.Forms.SendKeys]::SendWait('^{c}')"])
+                .output();
+            thread::sleep(Duration::from_millis(50));
+        }
+    }
+}
+
