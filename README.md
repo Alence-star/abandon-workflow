@@ -1,6 +1,7 @@
 # Abandon
 
 Apple packaging notes: see [docs/apple-distribution.md](docs/apple-distribution.md) for internal macOS packages and signed iOS ad-hoc builds.
+Download page: `https://alence-star.github.io/abandon-workflow/`
 
 Abandon 是一个基于 `Tauri v2 + React + TypeScript + Rust` 的桌面英语学习助手。
 

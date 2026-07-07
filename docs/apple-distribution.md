@@ -31,6 +31,14 @@ GitHub Actions 执行：
 - 工作流：`.github/workflows/build-macos-internal.yml`
 - 触发方式：`workflow_dispatch`
 - 产物：`macOS x64` 和 `macOS Apple Silicon` 两套 `DMG`
+- 成功后会自动创建一个 `GitHub prerelease`，不再只停留在 `Artifacts`
+
+公开下载页：
+
+- 页面工作流：`.github/workflows/deploy-download-page.yml`
+- 页面目录：`site/`
+- 预期地址：`https://alence-star.github.io/abandon-workflow/`
+- 页面会直接读取 `GitHub Releases API`，优先显示最新 `macOS internal` 包
 
 ## iOS 内测包
 

@@ -1,0 +1,93 @@
+name: deploy-download-page
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows:
+      - build-macos-internal
+      - build-macos-release
+      - build-ios-adhoc
+    types:
+      - completed
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/deploy-download-page.yml
+      - site/**
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate release snapshot
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("fs");
+            const path = require("path");
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            const releases = await github.paginate(github.rest.repos.listReleases, {
+              owner,
+              repo,
+              per_page: 100
+            });
+
+            const payload = {
+              generated_at: new Date().toISOString(),
+              repository: { owner, repo },
+              releases: releases.map((release) => ({
+                name: release.name,
+                tag_name: release.tag_name,
+                draft: release.draft,
+                prerelease: release.prerelease,
+                created_at: release.created_at,
+                published_at: release.published_at,
+                html_url: release.html_url,
+                assets: release.assets.map((asset) => ({
+                  name: asset.name,
+                  size: asset.size,
+                  browser_download_url: asset.browser_download_url
+                }))
+              }))
+            };
+
+            fs.mkdirSync(path.join(process.cwd(), "site", "data"), { recursive: true });
+            fs.writeFileSync(
+              path.join(process.cwd(), "site", "data", "releases.js"),
+              `window.ABANDON_RELEASE_SNAPSHOT = ${JSON.stringify(payload, null, 2)};\n`
+            );
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

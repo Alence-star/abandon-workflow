@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Abandon Download Hub</title>
+    <meta
+      name="description"
+      content="Abandon macOS and iOS package downloads powered by GitHub Releases."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Manrope:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <div class="glow glow-left"></div>
+      <div class="glow glow-right"></div>
+
+      <main class="layout">
+        <section class="hero">
+          <p class="eyebrow">Abandon Download Hub</p>
+          <h1>直接拿最新安装包，不再翻 Actions。</h1>
+          <p class="hero-copy">
+            这个页面直接读取 GitHub Releases，优先展示最新的 macOS 内测包，并保留正式发布版和 iOS 包入口。
+          </p>
+          <div class="hero-actions">
+            <a
+              class="button button-primary"
+              href="https://github.com/Alence-star/abandon-workflow/releases"
+              target="_blank"
+              rel="noreferrer"
+            >
+              打开 Releases
+            </a>
+            <a
+              class="button button-secondary"
+              href="https://github.com/Alence-star/abandon-workflow"
+              target="_blank"
+              rel="noreferrer"
+            >
+              打开代码仓库
+            </a>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Latest Internal Build</p>
+              <h2>macOS 内测安装包</h2>
+            </div>
+            <p class="panel-note">Apple 芯片和 Intel 两套都会显示。</p>
+          </div>
+          <div id="internal-macos" class="release-slot loading">
+            正在读取最新内测包...
+          </div>
+        </section>
+
+        <section class="panel panel-grid">
+          <div>
+            <div class="panel-head compact">
+              <div>
+                <p class="panel-kicker">Latest Public Release</p>
+                <h2>正式发布版</h2>
+              </div>
+            </div>
+            <div id="stable-release" class="release-slot loading">
+              正在读取正式发布版...
+            </div>
+          </div>
+
+          <div>
+            <div class="panel-head compact">
+              <div>
+                <p class="panel-kicker">Latest iOS Package</p>
+                <h2>iOS 安装包</h2>
+              </div>
+            </div>
+            <div id="ios-release" class="release-slot loading">
+              正在读取 iOS 安装包...
+            </div>
+          </div>
+        </section>
+
+        <section class="panel guide-panel">
+          <div class="panel-head compact">
+            <div>
+              <p class="panel-kicker">Quick Guide</p>
+              <h2>下载时怎么选</h2>
+            </div>
+          </div>
+          <div class="guide-grid">
+            <article class="guide-card">
+              <h3>Apple Silicon</h3>
+              <p>M1 / M2 / M3 / M4 机器请选择 `aarch64` 或 `arm64` 的 DMG。</p>
+            </article>
+            <article class="guide-card">
+              <h3>Intel Mac</h3>
+              <p>老款 Intel Mac 请选择 `x64` 或 `x86_64` 的 DMG。</p>
+            </article>
+            <article class="guide-card">
+              <h3>iPhone / iPad</h3>
+              <p>iOS 的 `IPA` 只能安装到已纳入 Apple 描述文件的测试设备。</p>
+            </article>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="./data/releases.js"></script>
+    <script src="./app.js" defer></script>
+  </body>
+</html>
