@@ -124,6 +124,7 @@ pub fn run(conn: &Connection) -> Result<()> {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT NOT NULL UNIQUE COLLATE NOCASE,
             password_hash TEXT NOT NULL,
+            password_sha256 TEXT,
             created_at TEXT DEFAULT (datetime('now')),
             last_login_at TEXT
         );
@@ -146,6 +147,7 @@ pub fn run(conn: &Connection) -> Result<()> {
     ensure_column(conn, "wordbook", "collocations", "TEXT")?;
     ensure_column(conn, "wordbook", "memory_trick", "TEXT")?;
     ensure_column(conn, "wordbook", "familiarity", "INTEGER DEFAULT 0")?;
+    ensure_column(conn, "users", "password_sha256", "TEXT")?;
 
     conn.execute_batch(
         "

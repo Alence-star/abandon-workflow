@@ -1,7 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { ask } from "@tauri-apps/plugin-dialog";
-import { relaunch } from "@tauri-apps/plugin-process";
-import { check } from "@tauri-apps/plugin-updater";
 import {
   getConfig,
   getCurrentUser,
@@ -12,6 +9,12 @@ import {
   setConfig,
   syncNow,
 } from "../../services/api";
+import {
+  checkForUpdates,
+  confirmInfo,
+  isTauriRuntime,
+  relaunchApp,
+} from "../../services/runtime";
 import { useThemeStore } from "../../stores/themeStore";
 import type { RuntimePaths, UserSession } from "../../types";
 
@@ -26,6 +29,7 @@ export const Settings: React.FC = () => {
   const [apiBaseUrl, setApiBaseUrl] = useState("");
   const [apiModel, setApiModel] = useState("");
   const [syncDir, setSyncDir] = useState("");
+  const [githubSyncToken, setGithubSyncToken] = useState("");
   const [runtimePaths, setRuntimePaths] = useState<RuntimePaths | null>(null);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -44,48 +48,58 @@ export const Settings: React.FC = () => {
     void loadSettings();
   }, []);
 
-  const loadSettings = async () => {
+  async function loadSettings() {
     setLoading(true);
     try {
-      const [key, baseUrl, model, sharedSyncDir, user, paths] = await Promise.all([
-        getConfig("api_key"),
-        getConfig("api_base_url"),
-        getConfig("api_model"),
-        getConfig("sync_dir"),
-        getCurrentUser(),
-        getRuntimePaths(),
-      ]);
+      const [key, baseUrl, model, sharedSyncDir, githubToken, user, paths] =
+        await Promise.all([
+          getConfig("api_key"),
+          getConfig("api_base_url"),
+          getConfig("api_model"),
+          getConfig("sync_dir"),
+          getConfig("github_sync_token"),
+          getCurrentUser(),
+          getRuntimePaths(),
+        ]);
 
       setApiKey(key || "");
       setApiBaseUrl(baseUrl || "https://api.deepseek.com");
       setApiModel(model || "deepseek-chat");
       setSyncDir(sharedSyncDir || "");
+      setGithubSyncToken(githubToken || "");
       setCurrentUser(user);
       setRuntimePaths(paths);
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  const handleSave = async () => {
+  async function handleSave() {
     try {
       await Promise.all([
         setConfig("api_key", apiKey.trim()),
         setConfig("api_base_url", apiBaseUrl.trim() || "https://api.deepseek.com"),
         setConfig("api_model", apiModel.trim() || "deepseek-chat"),
         setConfig("sync_dir", syncDir.trim()),
+        setConfig("github_sync_token", githubSyncToken.trim()),
       ]);
 
       setSaved(true);
-      setSyncStatus(syncDir.trim() ? "共享同步目录已保存。" : "已清空共享同步目录。");
+      if (githubSyncToken.trim()) {
+        setSyncStatus("GitHub 云同步令牌已保存。");
+      } else if (syncDir.trim()) {
+        setSyncStatus("共享同步目录已保存。");
+      } else {
+        setSyncStatus("未配置同步后端。");
+      }
       await loadSettings();
       window.setTimeout(() => setSaved(false), 2000);
     } catch (error) {
       alert(`保存失败：${String(error)}`);
     }
-  };
+  }
 
-  const handleAuthSubmit = async () => {
+  async function handleAuthSubmit() {
     if (!username.trim() || !password.trim()) {
       setAuthStatus("请输入用户名和密码。");
       return;
@@ -112,8 +126,8 @@ export const Settings: React.FC = () => {
           : `登录成功，当前账号：${user.username}`
       );
 
-      if (syncDir.trim()) {
-        setSyncStatus("已按当前账号刷新共享同步文件。");
+      if (githubSyncToken.trim() || syncDir.trim()) {
+        setSyncStatus("当前账号数据已按最新配置刷新同步。");
       }
 
       await loadSettings();
@@ -122,9 +136,9 @@ export const Settings: React.FC = () => {
     } finally {
       setAuthLoading(false);
     }
-  };
+  }
 
-  const handleLogout = async () => {
+  async function handleLogout() {
     setAuthLoading(true);
     try {
       await logoutUser();
@@ -136,9 +150,9 @@ export const Settings: React.FC = () => {
     } finally {
       setAuthLoading(false);
     }
-  };
+  }
 
-  const handleManualSync = async () => {
+  async function handleManualSync() {
     setSyncStatus("同步中...");
     try {
       const result = await syncNow();
@@ -147,35 +161,41 @@ export const Settings: React.FC = () => {
     } catch (error) {
       setSyncStatus(String(error));
     }
-  };
+  }
 
-  const handleCheckUpdate = async () => {
+  async function handleCheckUpdate() {
+    if (!isTauriRuntime) {
+      window.open(
+        "https://alence-star.github.io/abandon-workflow/",
+        "_blank",
+        "noopener,noreferrer"
+      );
+      return;
+    }
+
     setUpdateStatus("检查中...");
     try {
-      const update = await check();
+      const update = await checkForUpdates();
       if (!update) {
         setUpdateStatus("已经是最新版本。");
         window.setTimeout(() => setUpdateStatus(""), 3000);
         return;
       }
 
-      const yes = await ask("发现新版本，是否立即更新？", {
-        title: "Abandon 更新",
-        kind: "info",
-      });
-
-      if (yes) {
-        setUpdateStatus("下载更新中...");
-        await update.downloadAndInstall();
-        await relaunch();
-      } else {
+      const yes = await confirmInfo("发现新版本，是否立即更新？", "Abandon 更新");
+      if (!yes) {
         setUpdateStatus("");
+        return;
       }
+
+      setUpdateStatus("下载更新中...");
+      await update.downloadAndInstall();
+      await relaunchApp();
     } catch (error) {
       setUpdateStatus(`检查失败：${String(error)}`);
       window.setTimeout(() => setUpdateStatus(""), 5000);
     }
-  };
+  }
 
   return (
     <div className="settings">
@@ -187,7 +207,7 @@ export const Settings: React.FC = () => {
               <div>
                 <div className="settings-item-label">{currentUser.username}</div>
                 <div className="settings-item-desc">
-                  已登录。当前账号的生词本和学习记录会优先写入账号隔离的数据区。
+                  当前账号的生词本、已学单词和用户配置会优先按账号隔离。
                 </div>
               </div>
               <button
@@ -260,13 +280,17 @@ export const Settings: React.FC = () => {
                 onClick={handleAuthSubmit}
                 disabled={authLoading}
               >
-                {authLoading ? "处理中..." : authMode === "register" ? "注册并登录" : "登录"}
+                {authLoading
+                  ? "处理中..."
+                  : authMode === "register"
+                    ? "注册并登录"
+                    : "登录"}
               </button>
             </>
           )}
 
           <p className="settings-note">
-            不登录也可以使用翻译；登录后，生词本和学习记录会绑定到当前账号。
+            仅使用桌面端时，配置共享目录即可同步；如果要让手机 PWA 和桌面端共用同一个账号数据，请同时配置 GitHub 云同步令牌。
           </p>
           {authStatus && <p className="settings-status">{authStatus}</p>}
         </div>
@@ -286,13 +310,33 @@ export const Settings: React.FC = () => {
                   : "C:\\Users\\你的用户名\\Dropbox\\AbandonSync"
               }
               value={syncDir}
+              disabled={!isTauriRuntime}
               onChange={(event) => {
                 setSyncDir(event.target.value);
                 setSaved(false);
               }}
             />
             <span className="form-hint">
-              Windows 和 Mac 填同一个 OneDrive、Dropbox 或 iCloud Drive 目录即可同步。
+              {isTauriRuntime
+                ? "桌面端可使用 iCloud Drive、OneDrive、Dropbox 等共享目录。"
+                : "浏览器 PWA 无法直接访问本地共享目录；若要跨端同步，请使用下方 GitHub 云同步。"}
+            </span>
+          </div>
+
+          <div className="form-field">
+            <label className="form-label">GitHub 云同步令牌</label>
+            <input
+              type="password"
+              className="form-input mono"
+              placeholder="ghp_xxx / github_pat_xxx"
+              value={githubSyncToken}
+              onChange={(event) => {
+                setGithubSyncToken(event.target.value);
+                setSaved(false);
+              }}
+            />
+            <span className="form-hint">
+              同一令牌配置到桌面端和手机 PWA 后，可通过 GitHub Gist 自动同步同账号的已学单词和学习记录。
             </span>
           </div>
 
@@ -314,7 +358,7 @@ export const Settings: React.FC = () => {
           </div>
 
           <p className="settings-note">
-            同步文件会按账号拆分，例如 `alice.json`、`bob.json`，避免多个账号互相覆盖。
+            桌面端会优先读取热键触发时选中的文本；账号同步文件会按账号拆分，GitHub 云同步则使用当前 GitHub 令牌下的私密 Gist。
           </p>
           {syncStatus && <p className="settings-status">{syncStatus}</p>}
         </div>
@@ -334,7 +378,7 @@ export const Settings: React.FC = () => {
           </div>
 
           <div className="form-field">
-            <label className="form-label">本地数据库文件</label>
+            <label className="form-label">本地数据文件</label>
             <input
               type="text"
               className="form-input mono"
@@ -349,7 +393,7 @@ export const Settings: React.FC = () => {
               type="text"
               className="form-input mono"
               readOnly
-              value={runtimePaths?.sync_dir || "未设置"}
+              value={runtimePaths?.sync_dir || "未配置"}
             />
           </div>
 
@@ -359,13 +403,14 @@ export const Settings: React.FC = () => {
               type="text"
               className="form-input mono"
               readOnly
-              value={runtimePaths?.sync_file_path || "未登录或未设置同步目录"}
+              value={runtimePaths?.sync_file_path || "未登录或未配置"}
             />
           </div>
 
           <p className="settings-note">
-            mac 默认数据库路径通常在
-            `~/Library/Application Support/com.abandon.english/abandon.db`。
+            {isTauriRuntime
+              ? "mac 默认数据库路径通常在 ~/Library/Application Support/com.abandon.english/abandon.db。"
+              : "PWA 数据保存在当前浏览器本地存储中；切换浏览器或清空站点数据会丢失本地缓存。"}
           </p>
         </div>
       </div>
@@ -400,7 +445,7 @@ export const Settings: React.FC = () => {
               }}
             />
             <span className="form-hint">
-              默认是 DeepSeek，也可以改成兼容 OpenAI 的 API 网关。
+              默认使用 DeepSeek，也可以改成兼容 OpenAI 的网关。PWA 模式下，这个接口需要允许浏览器跨域访问。
             </span>
           </div>
 
@@ -421,7 +466,7 @@ export const Settings: React.FC = () => {
           {!loading && !apiKey && <p className="config-warning">请先保存可用的 API Key。</p>}
 
           <p className="settings-note">
-            单词查询会尽量返回词典式中文释义、常见搭配、记忆提示和例句。
+            单词查询会尽量返回完整中文释义、常见搭配、记忆提示和例句；句子模式会同时给出翻译和语法拆解。
           </p>
         </div>
       </div>
@@ -449,7 +494,9 @@ export const Settings: React.FC = () => {
           <div className="settings-item-info">
             <div className="settings-item-label">选中文本后直接翻译</div>
             <div className="settings-item-desc">
-              唤起主窗口并直接翻译当前外部应用里选中的英文。
+              {isTauriRuntime
+                ? "唤起主窗口并直接翻译当前外部应用里选中的英文。"
+                : "手机 PWA 不支持系统级全局热键；桌面安装版仍然使用这个快捷键。"}
             </div>
           </div>
           <kbd className="shortcut-key">{modKey}+Shift+T</kbd>
@@ -466,14 +513,14 @@ export const Settings: React.FC = () => {
         <div className="settings-group-title">关于</div>
         <div className="settings-about" style={{ padding: "0 16px 16px" }}>
           <p>Abandon v1.0.1</p>
-          <p>轻量级英语学习桌面助手</p>
-          <p>基于 Tauri + React + TypeScript</p>
+          <p>轻量级英语学习桌面与移动端助手</p>
+          <p>桌面端基于 Tauri，PWA 端复用同一套 React 界面</p>
           <button className="update-check-btn" onClick={handleCheckUpdate}>
-            检查更新
+            {isTauriRuntime ? "检查更新" : "打开下载页"}
           </button>
           {updateStatus && <p className="update-status">{updateStatus}</p>}
           <p className="settings-note" style={{ marginTop: 10 }}>
-            账号默认只保存在本机数据库；配置共享同步目录后，同一账号可在双端同步生词本和学习记录。
+            当前版本支持桌面端共享目录同步，也支持通过 GitHub Gist 把同一账号的已学单词和学习记录同步到手机 PWA。
           </p>
         </div>
       </div>

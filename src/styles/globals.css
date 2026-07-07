@@ -71,6 +71,16 @@ body {
   user-select: none;
 }
 
+body[data-runtime="browser"] {
+  background: var(--color-bg);
+  user-select: text;
+}
+
+input,
+textarea {
+  user-select: text;
+}
+
 /* ========== Title Bar ========== */
 .title-bar {
   display: flex;
@@ -1616,6 +1626,51 @@ body {
   display: flex;
   flex-direction: column;
   background: var(--color-bg);
+}
+
+.app-root.browser-runtime {
+  width: 100%;
+  min-height: 100svh;
+  height: 100svh;
+}
+
+.browser-runtime .title-bar {
+  padding-top: env(safe-area-inset-top);
+  height: calc(var(--title-bar-height) + env(safe-area-inset-top));
+}
+
+.browser-runtime .floating-window {
+  height: calc(100svh - var(--title-bar-height) - env(safe-area-inset-top));
+}
+
+.browser-runtime .bottom-bar {
+  height: calc(var(--bottom-bar-height) + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.browser-runtime .content-area,
+.browser-runtime .vf-content,
+.browser-runtime .wb-list {
+  overscroll-behavior: contain;
+}
+
+@media (max-width: 640px) {
+  .browser-runtime .word-text {
+    font-size: 24px;
+  }
+
+  .browser-runtime .wd-word {
+    font-size: 28px;
+  }
+
+  .browser-runtime .tv-input-actions {
+    flex-wrap: wrap;
+  }
+
+  .browser-runtime .tv-paste-btn,
+  .browser-runtime .tv-translate-btn {
+    min-height: 38px;
+  }
 }
 
 /* ========== Voice FollowUp ========== */

@@ -5,6 +5,8 @@ use tauri::State;
 
 pub const CURRENT_USER_KEY: &str = "current_user_id";
 pub const SYNC_DIR_KEY: &str = "sync_dir";
+pub const GITHUB_SYNC_TOKEN_KEY: &str = "github_sync_token";
+pub const GITHUB_GIST_CACHE_KEY: &str = "github_sync_gist_cache";
 
 #[derive(Debug, Serialize)]
 pub struct RuntimePaths {
@@ -15,7 +17,10 @@ pub struct RuntimePaths {
 }
 
 fn is_global_only_key(key: &str) -> bool {
-    matches!(key, CURRENT_USER_KEY | SYNC_DIR_KEY)
+    matches!(
+        key,
+        CURRENT_USER_KEY | SYNC_DIR_KEY | GITHUB_SYNC_TOKEN_KEY | GITHUB_GIST_CACHE_KEY
+    )
 }
 
 pub fn get_global_config_value(conn: &Connection, key: &str) -> rusqlite::Result<Option<String>> {
@@ -104,9 +109,7 @@ pub async fn set_config(
     set_effective_config_value(db.conn(), &key, &value)
         .map_err(|e| format!("保存配置失败: {}", e))?;
 
-    if key == SYNC_DIR_KEY {
-        account_sync::push_current_user_snapshot(db.conn())?;
-    }
+    let _ = account_sync::push_current_user_snapshot(db.conn());
 
     Ok(())
 }

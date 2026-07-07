@@ -445,12 +445,12 @@ pub fn global_shortcut_handler(
         let handle = app_handle.clone();
         thread::spawn(move || match capture_selected_text(&handle) {
             Ok(text) => {
-                show_main_window(&handle);
                 store_text(&handle, text);
+                show_main_window(&handle);
             }
             Err(error) => {
-                show_main_window(&handle);
                 store_text(&handle, format!("!error:{}", error));
+                show_main_window(&handle);
             }
         });
         return;

@@ -6,7 +6,7 @@
     <title>Abandon Download Hub</title>
     <meta
       name="description"
-      content="Abandon macOS、iOS 与手机 PWA 下载入口。"
+      content="Abandon 的 macOS、iOS 与手机 PWA 下载入口。"
     />
     <link rel="icon" href="./favicon.ico" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -15,7 +15,7 @@
       href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Manrope:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./styles.css?v=20260707a" />
+    <link rel="stylesheet" href="./styles.css?v=20260707b" />
   </head>
   <body>
     <div class="page-shell">
@@ -27,8 +27,7 @@
           <p class="eyebrow">Abandon Download Hub</p>
           <h1>直接拿最新安装包，不再翻 Actions。</h1>
           <p class="hero-copy">
-            这个页面直接读取 GitHub Releases，优先展示最新的 macOS 内测包，并补上一个可安装到手机桌面的
-            PWA 入口。
+            这个页面会直接读取 GitHub Releases，优先展示最新的 macOS 构建包，同时提供 iOS 安装包与手机 PWA 入口。现在的 PWA 已经复用桌面端同一套 React UI，不再是独立的轻量静态页。
           </p>
           <div class="hero-actions">
             <a
@@ -48,7 +47,7 @@
               打开代码仓库
             </a>
             <a class="button button-secondary" href="./pwa/">
-              打开手机版 PWA
+              打开手机 PWA
             </a>
           </div>
         </section>
@@ -98,21 +97,22 @@
               <p class="panel-kicker">Mobile PWA</p>
               <h2>手机桌面版</h2>
             </div>
-            <p class="panel-note">可添加到 iPhone / Android 桌面，并以独立窗口运行。</p>
+            <p class="panel-note">
+              可添加到 iPhone / Android 桌面，并以全屏独立窗口运行。
+            </p>
           </div>
 
           <article class="pwa-card">
             <div class="pwa-copy">
-              <h3>Abandon Pocket</h3>
+              <h3>Abandon PWA</h3>
               <p>
-                这是面向手机的轻量版网页应用，支持输入 API Key 后直接翻译、查单词、朗读，并以
-                PWA 形式安装到桌面。它的数据保存在当前手机浏览器里，不会直接读取桌面端本地数据库。
+                这里打开的是和桌面端一致的主界面：翻译、生词本、已学单词、跟读、设置全部统一。若要让手机和桌面共享同一个账号的数据，请在设置页配置 GitHub 云同步令牌；仅桌面双端同步时，也可以继续使用共享目录。
               </p>
             </div>
             <div class="hero-actions pwa-actions">
               <a class="button button-primary" href="./pwa/">打开 PWA</a>
-              <a class="button button-secondary" href="./pwa/#install-guide">
-                查看安装说明
+              <a class="button button-secondary" href="./pwa/">
+                直接安装到桌面
               </a>
             </div>
           </article>
@@ -136,14 +136,14 @@
             </article>
             <article class="guide-card">
               <h3>iPhone / Android</h3>
-              <p>手机端优先用 PWA。若后续提供 `.ipa`，仍需符合 Apple 测试设备安装条件。</p>
+              <p>手机端优先使用 PWA；如果后续提供 `.ipa`，仍需满足 Apple 测试设备的安装条件。</p>
             </article>
           </div>
         </section>
       </main>
     </div>
 
-    <script src="./data/releases.js?v=20260707a"></script>
-    <script src="./app.js?v=20260707a" defer></script>
+    <script src="./data/releases.js?v=20260707b"></script>
+    <script src="./app.js?v=20260707b" defer></script>
   </body>
 </html>

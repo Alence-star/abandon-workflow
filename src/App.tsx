@@ -1,14 +1,15 @@
 import React, { useEffect } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { FloatingWindow } from "./components/FloatingWindow";
 import { useTheme } from "./hooks/useTheme";
-import { analyzeSentence, getWordInfo, translateText } from "./services/api";
+import {
+  analyzeSentence,
+  consumePendingTranslation,
+  getWordInfo,
+  translateText,
+} from "./services/api";
+import { runtimeLabel, isTauriRuntime } from "./services/runtime";
 import { useAppStore } from "./stores/appStore";
 import "./styles/globals.css";
-
-const appWindow = getCurrentWebviewWindow();
-void appWindow;
 
 export async function handleTranslateText(text: string) {
   const store = useAppStore.getState();
@@ -38,46 +39,47 @@ export async function handleTranslateText(text: string) {
         translation: info.translation,
         source_lang: "en",
       });
-    } else {
-      store.setViewMode("sentence");
-
-      let analysis = null;
-      let translation = null;
-
-      try {
-        analysis = await analyzeSentence(trimmed);
-      } catch (error) {
-        console.warn("[Abandon] analyzeSentence failed:", error);
-      }
-
-      try {
-        translation = await translateText(trimmed);
-      } catch (error) {
-        console.warn("[Abandon] translateText failed:", error);
-      }
-
-      if (!analysis && translation) {
-        analysis = {
-          translation: translation.translation,
-          grammar: {
-            sentence_structure: "未提供",
-            tense: "未提供",
-            clauses: [],
-          },
-        };
-      }
-
-      if (!translation && analysis?.translation) {
-        translation = {
-          original: trimmed,
-          translation: analysis.translation,
-          source_lang: "en",
-        };
-      }
-
-      store.setSentenceAnalysis(analysis);
-      store.setTranslation(translation);
+      return;
     }
+
+    store.setViewMode("sentence");
+
+    let analysis = null;
+    let translation = null;
+
+    try {
+      analysis = await analyzeSentence(trimmed);
+    } catch (error) {
+      console.warn("[Abandon] analyzeSentence failed:", error);
+    }
+
+    try {
+      translation = await translateText(trimmed);
+    } catch (error) {
+      console.warn("[Abandon] translateText failed:", error);
+    }
+
+    if (!analysis && translation) {
+      analysis = {
+        translation: translation.translation,
+        grammar: {
+          sentence_structure: "未提供",
+          tense: "未提供",
+          clauses: [],
+        },
+      };
+    }
+
+    if (!translation && analysis?.translation) {
+      translation = {
+        original: trimmed,
+        translation: analysis.translation,
+        source_lang: "en",
+      };
+    }
+
+    store.setSentenceAnalysis(analysis);
+    store.setTranslation(translation);
   } catch (error) {
     const message = String(error);
     store.setError(message);
@@ -108,28 +110,43 @@ const App: React.FC = () => {
   useTheme();
 
   useEffect(() => {
-    const timer = setInterval(async () => {
+    document.documentElement.dataset.runtime = runtimeLabel;
+    document.body.dataset.runtime = runtimeLabel;
+  }, []);
+
+  useEffect(() => {
+    if (!isTauriRuntime) {
+      const presetText = new URLSearchParams(window.location.search).get("text");
+      if (presetText?.trim()) {
+        void handleTranslateText(presetText.trim());
+      }
+      return;
+    }
+
+    const timer = window.setInterval(async () => {
       try {
-        const text = await invoke<string | null>("consume_pending_translation");
+        const text = await consumePendingTranslation();
         if (!text?.trim()) {
           return;
         }
 
+        const store = useAppStore.getState();
+
         if (text === "!wordbook") {
-          useAppStore.getState().reset();
-          useAppStore.getState().setViewMode("wordbook");
+          store.reset();
+          store.setViewMode("wordbook");
           return;
         }
 
         if (text === "!learning") {
-          useAppStore.getState().reset();
-          useAppStore.getState().setViewMode("learning");
+          store.reset();
+          store.setViewMode("learning");
           return;
         }
 
         if (text === "!settings") {
-          useAppStore.getState().reset();
-          useAppStore.getState().setViewMode("settings");
+          store.reset();
+          store.setViewMode("settings");
           return;
         }
 
@@ -139,13 +156,13 @@ const App: React.FC = () => {
 
         if (text.startsWith("!error:")) {
           const errorMessage = text.replace("!error:", "").trim();
-          useAppStore.getState().reset();
-          useAppStore.getState().setViewMode("translate");
-          useAppStore.getState().setError(errorMessage);
+          store.reset();
+          store.setViewMode("translate");
+          store.setError(errorMessage);
           return;
         }
 
-        handleTranslateText(text.trim());
+        await handleTranslateText(text.trim());
       } catch {
         // Ignore transient polling errors.
       }
@@ -155,7 +172,7 @@ const App: React.FC = () => {
   }, []);
 
   return (
-    <div className="app-root">
+    <div className={`app-root ${runtimeLabel}-runtime`}>
       <div className="title-bar" data-tauri-drag-region>
         <div className="title-bar-drag" data-tauri-drag-region>
           <span className="title-bar-text">Abandon</span>

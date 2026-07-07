@@ -95,12 +95,5 @@ pub fn run() {
         }
     };
 
-    app.run(|app_handle, event| {
-        if let tauri::RunEvent::Resumed = event {
-            if let Some(window) = app_handle.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.set_focus();
-            }
-        }
-    });
+    app.run(|_, _| {});
 }
