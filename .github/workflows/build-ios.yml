@@ -1,4 +1,4 @@
-name: build-ios
+name: build-ios-adhoc
 
 on:
   workflow_dispatch:
@@ -12,9 +12,12 @@ jobs:
     permissions:
       contents: write
     env:
-      APPLE_ID: ${{ secrets.APPLE_ID }}
-      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+      CI: "true"
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+      APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+      APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
       IOS_CERTIFICATE: ${{ secrets.IOS_CERTIFICATE }}
       IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
       IOS_MOBILE_PROVISION: ${{ secrets.IOS_MOBILE_PROVISION }}
@@ -30,6 +33,8 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
 
       - name: Restore Rust cache
         uses: swatinem/rust-cache@v2
@@ -39,6 +44,33 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Materialize App Store Connect API key
+        if: ${{ env.APPLE_API_KEY_P8 != '' && env.APPLE_API_KEY != '' }}
+        run: |
+          KEY_PATH="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY}.p8"
+          printf '%s' "$APPLE_API_KEY_P8" > "$KEY_PATH"
+          echo "APPLE_API_KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
+
+      - name: Validate signing configuration
+        run: |
+          if [ -z "${APPLE_TEAM_ID:-}" ]; then
+            echo "::error::Missing APPLE_TEAM_ID. iOS device installation requires a valid Apple team."
+            exit 1
+          fi
+
+          if [ -n "${APPLE_API_ISSUER:-}" ] && [ -n "${APPLE_API_KEY:-}" ] && [ -n "${APPLE_API_KEY_PATH:-}" ]; then
+            echo "Using automatic signing via App Store Connect API key."
+            exit 0
+          fi
+
+          if [ -n "${IOS_CERTIFICATE:-}" ] && [ -n "${IOS_CERTIFICATE_PASSWORD:-}" ] && [ -n "${IOS_MOBILE_PROVISION:-}" ] && [ -n "${APPLE_SIGNING_IDENTITY:-}" ]; then
+            echo "Using manual ad-hoc signing."
+            exit 0
+          fi
+
+          echo "::error::To build an installable iOS IPA, configure either automatic signing (APPLE_API_ISSUER, APPLE_API_KEY, APPLE_API_KEY_P8) or manual ad-hoc signing (IOS_CERTIFICATE, IOS_CERTIFICATE_PASSWORD, IOS_MOBILE_PROVISION, APPLE_SIGNING_IDENTITY)."
+          exit 1
 
       - name: Initialize iOS project
         run: npm exec tauri ios init

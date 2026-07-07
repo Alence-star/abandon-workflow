@@ -15,6 +15,13 @@ npm ci
 echo "==> Building frontend"
 npm run build
 
+if [ -z "${APPLE_CERTIFICATE:-}" ] && [ -z "${APPLE_SIGNING_IDENTITY:-}" ]; then
+  export APPLE_SIGNING_IDENTITY="-"
+  echo "==> No Apple certificate found, using ad-hoc signing for internal macOS testing"
+else
+  echo "==> Using configured Apple signing settings"
+fi
+
 echo "==> Building macOS app bundle and DMG"
 npm run tauri build -- --bundles app,dmg
 
@@ -25,5 +32,5 @@ find "$PROJECT_DIR/src-tauri/target/release/bundle" \
   -print
 
 echo
-echo "If you need notarized direct-download builds, set Apple signing/notarization"
+echo "For notarized public distribution, provide Apple signing and notarization"
 echo "environment variables before running this script."

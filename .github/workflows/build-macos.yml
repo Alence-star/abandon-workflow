@@ -1,4 +1,4 @@
-name: build-macos
+name: build-macos-release
 
 on:
   workflow_dispatch:
@@ -20,6 +20,7 @@ jobs:
           - target: x86_64-apple-darwin
             artifact_name: abandon-macos-x64
     env:
+      CI: "true"
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
       APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -51,6 +52,18 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Validate release signing configuration
+        run: |
+          if [ -z "${APPLE_CERTIFICATE:-}" ] || [ -z "${APPLE_CERTIFICATE_PASSWORD:-}" ] || [ -z "${APPLE_SIGNING_IDENTITY:-}" ]; then
+            echo "::error::Release macOS builds require APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD and APPLE_SIGNING_IDENTITY."
+            echo "::error::Use .github/workflows/build-macos-internal.yml if you only need an internal test DMG."
+            exit 1
+          fi
+
+          if [ -z "${APPLE_ID:-}" ] || [ -z "${APPLE_PASSWORD:-}" ] || [ -z "${APPLE_TEAM_ID:-}" ]; then
+            echo "::warning::Apple notarization credentials are missing. The build may succeed, but public direct-download distribution should be notarized."
+          fi
 
       - name: Build macOS bundles
         run: npm run tauri build -- --target ${{ matrix.target }} --bundles app,dmg

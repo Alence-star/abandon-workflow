@@ -1,5 +1,7 @@
 # Abandon
 
+Apple packaging notes: see [docs/apple-distribution.md](docs/apple-distribution.md) for internal macOS packages and signed iOS ad-hoc builds.
+
 Abandon 是一个基于 `Tauri v2 + React + TypeScript + Rust` 的桌面英语学习助手。
 
 ## 当前功能
