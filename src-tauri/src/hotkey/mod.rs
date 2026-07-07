@@ -1,18 +1,23 @@
 #[cfg(target_os = "macos")]
 use std::ffi::CStr;
+#[cfg(target_os = "macos")]
 use std::io::Write;
 #[cfg(target_os = "macos")]
 use std::os::raw::c_char;
 use std::process::{Command, Stdio};
+use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::Manager;
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut};
 
-use crate::PendingTranslation;
+use crate::{HotkeyState, PendingTranslation};
 
-const SHORTCUT_RELEASE_DELAY: Duration = Duration::from_millis(120);
+const SHORTCUT_RELEASE_DELAY: Duration = Duration::from_millis(260);
+const RETRY_SHORTCUT_RELEASE_DELAY: Duration = Duration::from_millis(420);
+const COPY_RETRY_DELAY: Duration = Duration::from_millis(220);
+const TRANSLATE_SHORTCUT_DEBOUNCE: Duration = Duration::from_millis(900);
 const CLIPBOARD_POLL_INTERVAL: Duration = Duration::from_millis(90);
 const CLIPBOARD_STABLE_DELAY: Duration = Duration::from_millis(360);
 const CLIPBOARD_MIN_SETTLE_TIME: Duration = Duration::from_millis(650);
@@ -298,6 +303,56 @@ fn wait_for_stable_copied_text(handle: &tauri::AppHandle, clipboard_marker: &str
     candidate
 }
 
+fn capture_selection_via_clipboard(handle: &tauri::AppHandle, release_delay: Duration) -> String {
+    let clipboard_marker = make_clipboard_marker();
+    write_clipboard_text(handle, &clipboard_marker);
+    thread::sleep(release_delay);
+    copy_selection();
+    wait_for_stable_copied_text(handle, &clipboard_marker)
+}
+
+struct TranslateCaptureGuard {
+    handle: tauri::AppHandle,
+}
+
+impl Drop for TranslateCaptureGuard {
+    fn drop(&mut self) {
+        let state = self.handle.state::<HotkeyState>();
+        state
+            .translate_in_progress
+            .store(false, Ordering::SeqCst);
+    }
+}
+
+fn begin_translate_capture(handle: &tauri::AppHandle) -> Option<TranslateCaptureGuard> {
+    let state = handle.state::<HotkeyState>();
+    let now = Instant::now();
+
+    if let Ok(last_started_at) = state.last_translate_started_at.lock() {
+        if let Some(last_started_at) = *last_started_at {
+            if now.duration_since(last_started_at) < TRANSLATE_SHORTCUT_DEBOUNCE {
+                return None;
+            }
+        }
+    }
+
+    if state
+        .translate_in_progress
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return None;
+    }
+
+    if let Ok(mut last_started_at) = state.last_translate_started_at.lock() {
+        *last_started_at = Some(now);
+    }
+
+    Some(TranslateCaptureGuard {
+        handle: handle.clone(),
+    })
+}
+
 fn copy_selection() {
     #[cfg(target_os = "macos")]
     {
@@ -400,13 +455,13 @@ pub fn capture_selected_text(handle: &tauri::AppHandle) -> Result<String, String
     }
 
     let original_clipboard = read_clipboard_text(handle);
-    let clipboard_marker = make_clipboard_marker();
-    write_clipboard_text(handle, &clipboard_marker);
+    let mut copied_text = capture_selection_via_clipboard(handle, SHORTCUT_RELEASE_DELAY);
 
-    thread::sleep(SHORTCUT_RELEASE_DELAY);
-    copy_selection();
+    if copied_text.is_empty() {
+        thread::sleep(COPY_RETRY_DELAY);
+        copied_text = capture_selection_via_clipboard(handle, RETRY_SHORTCUT_RELEASE_DELAY);
+    }
 
-    let copied_text = wait_for_stable_copied_text(handle, &clipboard_marker);
     restore_clipboard(handle, &original_clipboard);
 
     if !copied_text.is_empty() {
@@ -443,14 +498,22 @@ pub fn global_shortcut_handler(
 
     if shortcut == &translate_shortcut {
         let handle = app_handle.clone();
-        thread::spawn(move || match capture_selected_text(&handle) {
-            Ok(text) => {
-                store_text(&handle, text);
-                show_main_window(&handle);
-            }
-            Err(error) => {
-                store_text(&handle, format!("!error:{}", error));
-                show_main_window(&handle);
+        let Some(_capture_guard) = begin_translate_capture(&handle) else {
+            return;
+        };
+
+        thread::spawn(move || {
+            let _capture_guard = _capture_guard;
+
+            match capture_selected_text(&handle) {
+                Ok(text) => {
+                    store_text(&handle, text);
+                    show_main_window(&handle);
+                }
+                Err(error) => {
+                    store_text(&handle, format!("!error:{}", error));
+                    show_main_window(&handle);
+                }
             }
         });
         return;

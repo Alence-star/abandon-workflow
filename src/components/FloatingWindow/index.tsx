@@ -122,6 +122,7 @@ export const FloatingWindow: React.FC = () => {
           title="翻译"
         >
           <IconTranslate />
+          <span className="nav-btn-label">翻译</span>
         </button>
         <button
           className={`nav-btn ${viewMode === "wordbook" || viewMode === "wordbook-detail" ? "active" : ""}`}
@@ -129,6 +130,7 @@ export const FloatingWindow: React.FC = () => {
           title="生词本"
         >
           <IconBook />
+          <span className="nav-btn-label">词本</span>
         </button>
         <button
           className={`nav-btn ${viewMode === "learning" ? "active" : ""}`}
@@ -136,6 +138,7 @@ export const FloatingWindow: React.FC = () => {
           title="已学单词"
         >
           <IconHistory />
+          <span className="nav-btn-label">已学</span>
         </button>
         <button
           className={`nav-btn ${viewMode === "voicefollowup" ? "active" : ""}`}
@@ -143,6 +146,7 @@ export const FloatingWindow: React.FC = () => {
           title="跟读"
         >
           <IconVoice />
+          <span className="nav-btn-label">跟读</span>
         </button>
         <button
           className={`nav-btn ${viewMode === "settings" ? "active" : ""}`}
@@ -150,6 +154,7 @@ export const FloatingWindow: React.FC = () => {
           title="设置"
         >
           <IconSettings />
+          <span className="nav-btn-label">设置</span>
         </button>
       </div>
     </div>

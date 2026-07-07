@@ -193,6 +193,14 @@ textarea {
   transition: all 0.15s ease;
 }
 
+.nav-btn svg {
+  flex-shrink: 0;
+}
+
+.nav-btn-label {
+  display: none;
+}
+
 .nav-btn:hover {
   color: var(--color-text-primary);
   background: var(--color-bg-tertiary);
@@ -1652,9 +1660,83 @@ textarea {
 .browser-runtime .vf-content,
 .browser-runtime .wb-list {
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 @media (max-width: 640px) {
+  .app-root.browser-runtime {
+    --title-bar-height: 42px;
+    --bottom-bar-height: 74px;
+  }
+
+  .browser-runtime .title-bar {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .browser-runtime .floating-window {
+    height: calc(100svh - var(--title-bar-height) - env(safe-area-inset-top));
+  }
+
+  .browser-runtime .bottom-bar {
+    gap: 8px;
+    padding: 8px 10px calc(10px + env(safe-area-inset-bottom));
+    box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.08);
+  }
+
+  .browser-runtime .nav-btn {
+    height: 56px;
+    min-height: 56px;
+    flex-direction: column;
+    gap: 4px;
+    border-radius: 16px;
+    font-size: 10px;
+    font-weight: 600;
+  }
+
+  .browser-runtime .nav-btn svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .browser-runtime .nav-btn-label {
+    display: block;
+    line-height: 1;
+    font-size: 10px;
+    letter-spacing: 0.02em;
+  }
+
+  .browser-runtime .settings-form,
+  .browser-runtime .wd-card,
+  .browser-runtime .wb-card,
+  .browser-runtime .lh-card,
+  .browser-runtime .vf-card,
+  .browser-runtime .settings-user-card {
+    border-radius: 16px;
+  }
+
+  .browser-runtime .tv-input-section {
+    padding: 12px 14px 16px;
+  }
+
+  .browser-runtime .tv-textarea,
+  .browser-runtime .form-input,
+  .browser-runtime .wb-search-input {
+    font-size: 16px;
+  }
+
+  .browser-runtime .tv-paste-btn,
+  .browser-runtime .tv-translate-btn,
+  .browser-runtime .save-config-btn,
+  .browser-runtime .settings-secondary-btn {
+    min-height: 44px;
+  }
+
+  .browser-runtime .wb-search {
+    height: 52px;
+    padding: 0 16px;
+  }
+
   .browser-runtime .word-text {
     font-size: 24px;
   }

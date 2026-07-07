@@ -6,8 +6,9 @@ mod tray;
 
 use database::Database;
 use std::process::Child;
+use std::sync::atomic::AtomicBool;
 use std::sync::Mutex;
-use tauri::Manager;
+use std::time::Instant;
 
 pub struct AppState {
     pub db: Mutex<Database>,
@@ -19,6 +20,11 @@ pub struct PendingTranslation {
 
 pub struct SpeechState {
     pub process: Mutex<Option<Child>>,
+}
+
+pub struct HotkeyState {
+    pub translate_in_progress: AtomicBool,
+    pub last_translate_started_at: Mutex<Option<Instant>>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -48,6 +54,10 @@ pub fn run() {
         })
         .manage(SpeechState {
             process: Mutex::new(None),
+        })
+        .manage(HotkeyState {
+            translate_in_progress: AtomicBool::new(false),
+            last_translate_started_at: Mutex::new(None),
         })
         .invoke_handler(tauri::generate_handler![
             commands::translation::translate_text,
