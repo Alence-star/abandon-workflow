@@ -134,7 +134,7 @@ const App: React.FC = () => {
 
         if (text === "!wordbook") {
           store.reset();
-          store.setViewMode("wordbook");
+          store.setViewMode("learning");
           return;
         }
 

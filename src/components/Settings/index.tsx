@@ -95,6 +95,13 @@ export const Settings: React.FC = () => {
     }
   }
 
+  function schedulePostAuthSync(successMessage?: string) {
+    void (async () => {
+      await runPostAuthSync(successMessage);
+      await loadSettings();
+    })();
+  }
+
   async function handleSave() {
     setSyncStatus("");
     try {
@@ -106,7 +113,7 @@ export const Settings: React.FC = () => {
 
       setSaved(true);
       if (currentUser) {
-        await runPostAuthSync("同步配置已保存。");
+        schedulePostAuthSync("同步配置已保存。");
       } else if (githubSyncToken.trim()) {
         setSyncStatus("GitHub 云同步令牌已保存，登录后可立即同步。");
       } else if (syncDir.trim()) {
@@ -151,8 +158,8 @@ export const Settings: React.FC = () => {
           : `登录成功，当前账号：${user.username}`
       );
 
-      await runPostAuthSync("当前账号已登录，本地数据已切换。");
       await loadSettings();
+      schedulePostAuthSync("当前账号已登录，本地数据已切换。");
     } catch (error) {
       setAuthStatus(String(error));
     } finally {
@@ -230,7 +237,7 @@ export const Settings: React.FC = () => {
               <div>
                 <div className="settings-item-label">{currentUser.username}</div>
                 <div className="settings-item-desc">
-                  当前账号的生词本、已学单词和用户配置会优先按账号隔离。
+                  当前账号的词本、学习记录和用户配置会优先按账号隔离。
                 </div>
               </div>
               <button
@@ -359,7 +366,7 @@ export const Settings: React.FC = () => {
               }}
             />
             <span className="form-hint">
-              同一令牌配置到桌面端和手机 PWA 后，可通过 GitHub Gist 自动同步同账号的已学单词和学习记录。
+              同一令牌配置到桌面端和手机 PWA 后，可通过 GitHub Gist 自动同步同账号的词本和学习记录。
             </span>
           </div>
 
@@ -543,7 +550,7 @@ export const Settings: React.FC = () => {
           </button>
           {updateStatus && <p className="update-status">{updateStatus}</p>}
           <p className="settings-note" style={{ marginTop: 10 }}>
-            当前版本支持桌面端共享目录同步，也支持通过 GitHub Gist 把同一账号的已学单词和学习记录同步到手机 PWA。
+            当前版本支持桌面端共享目录同步，也支持通过 GitHub Gist 把同一账号的词本和学习记录同步到手机 PWA。
           </p>
         </div>
       </div>

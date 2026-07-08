@@ -17,6 +17,9 @@ use crate::{HotkeyState, PendingTranslation};
 const SHORTCUT_RELEASE_DELAY: Duration = Duration::from_millis(260);
 const RETRY_SHORTCUT_RELEASE_DELAY: Duration = Duration::from_millis(420);
 const COPY_RETRY_DELAY: Duration = Duration::from_millis(220);
+#[cfg(target_os = "macos")]
+const TRANSLATE_SHORTCUT_DEBOUNCE: Duration = Duration::from_millis(2200);
+#[cfg(not(target_os = "macos"))]
 const TRANSLATE_SHORTCUT_DEBOUNCE: Duration = Duration::from_millis(900);
 const CLIPBOARD_POLL_INTERVAL: Duration = Duration::from_millis(90);
 const CLIPBOARD_STABLE_DELAY: Duration = Duration::from_millis(360);
@@ -31,6 +34,10 @@ type CFAllocatorRef = *const std::ffi::c_void;
 type CFTypeRef = *const std::ffi::c_void;
 #[cfg(target_os = "macos")]
 type AXUIElementRef = CFTypeRef;
+#[cfg(target_os = "macos")]
+type CGEventSourceRef = *const std::ffi::c_void;
+#[cfg(target_os = "macos")]
+type CGEventRef = *const std::ffi::c_void;
 
 #[cfg(target_os = "macos")]
 const K_CF_ALLOCATOR_DEFAULT: CFAllocatorRef = std::ptr::null();
@@ -41,7 +48,13 @@ const K_AX_ERROR_API_DISABLED: i32 = -25211;
 #[cfg(target_os = "macos")]
 const K_CG_EVENT_SOURCE_STATE_COMBINED_SESSION_STATE: i32 = 0;
 #[cfg(target_os = "macos")]
+const K_CG_HID_EVENT_TAP: u32 = 0;
+#[cfg(target_os = "macos")]
+const K_CG_EVENT_FLAG_MASK_COMMAND: u64 = 0x0010_0000;
+#[cfg(target_os = "macos")]
 const MACOS_KEYCODE_T: u16 = 17;
+#[cfg(target_os = "macos")]
+const MACOS_KEYCODE_C: u16 = 8;
 #[cfg(target_os = "macos")]
 const MACOS_KEYCODE_LEFT_COMMAND: u16 = 55;
 #[cfg(target_os = "macos")]
@@ -56,6 +69,10 @@ const MACOS_SHORTCUT_RELEASE_TIMEOUT: Duration = Duration::from_millis(1200);
 const MACOS_SHORTCUT_RELEASE_POLL_INTERVAL: Duration = Duration::from_millis(25);
 #[cfg(target_os = "macos")]
 const MACOS_SHORTCUT_RELEASE_SETTLE_DELAY: Duration = Duration::from_millis(45);
+#[cfg(target_os = "macos")]
+const MACOS_AX_CAPTURE_TIMEOUT: Duration = Duration::from_millis(720);
+#[cfg(target_os = "macos")]
+const MACOS_AX_CAPTURE_POLL_INTERVAL: Duration = Duration::from_millis(60);
 
 #[cfg(target_os = "macos")]
 #[link(name = "ApplicationServices", kind = "framework")]
@@ -78,6 +95,14 @@ extern "C" {
         buffer_size: isize,
         encoding: u32,
     ) -> u8;
+    fn CGEventSourceCreate(state_id: i32) -> CGEventSourceRef;
+    fn CGEventCreateKeyboardEvent(
+        source: CGEventSourceRef,
+        virtual_key: u16,
+        key_down: bool,
+    ) -> CGEventRef;
+    fn CGEventSetFlags(event: CGEventRef, flags: u64);
+    fn CGEventPost(tap: u32, event: CGEventRef);
     fn CGEventSourceKeyState(state_id: i32, key: u16) -> bool;
     fn CFRelease(cf: CFTypeRef);
 }
@@ -206,6 +231,28 @@ fn get_selected_text_ax_direct() -> (Option<String>, i32) {
 
         (None, if last_error != 0 { last_error } else { -99994 })
     }
+}
+
+#[cfg(target_os = "macos")]
+fn capture_selection_via_accessibility() -> (Option<String>, bool) {
+    let started_at = Instant::now();
+    let mut accessibility_denied = false;
+
+    while started_at.elapsed() < MACOS_AX_CAPTURE_TIMEOUT {
+        let (text, error_code) = get_selected_text_ax_direct();
+        if let Some(text) = text {
+            return (Some(text), accessibility_denied);
+        }
+
+        if error_code == K_AX_ERROR_API_DISABLED {
+            accessibility_denied = true;
+            break;
+        }
+
+        thread::sleep(MACOS_AX_CAPTURE_POLL_INTERVAL);
+    }
+
+    (None, accessibility_denied)
 }
 
 fn store_text(handle: &tauri::AppHandle, text: String) {
@@ -411,65 +458,33 @@ fn begin_translate_capture(handle: &tauri::AppHandle) -> Option<TranslateCapture
 fn copy_selection() {
     #[cfg(target_os = "macos")]
     {
-        let front_app_script = r###"tell application "System Events"
-    set frontApp to name of first application process whose frontmost is true
-end tell
-return frontApp"###;
+        unsafe {
+            let source = CGEventSourceCreate(K_CG_EVENT_SOURCE_STATE_COMBINED_SESSION_STATE);
+            if !source.is_null() {
+                let key_down = CGEventCreateKeyboardEvent(source, MACOS_KEYCODE_C, true);
+                let key_up = CGEventCreateKeyboardEvent(source, MACOS_KEYCODE_C, false);
 
-        let front_app = Command::new("osascript")
-            .args(["-e", front_app_script])
-            .output()
-            .ok()
-            .and_then(|output| output.status.success().then_some(output))
-            .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
-            .unwrap_or_default();
+                if !key_down.is_null() && !key_up.is_null() {
+                    CGEventSetFlags(key_down, K_CG_EVENT_FLAG_MASK_COMMAND);
+                    CGEventSetFlags(key_up, K_CG_EVENT_FLAG_MASK_COMMAND);
+                    CGEventPost(K_CG_HID_EVENT_TAP, key_down);
+                    thread::sleep(Duration::from_millis(24));
+                    CGEventPost(K_CG_HID_EVENT_TAP, key_up);
+                    CFRelease(key_down);
+                    CFRelease(key_up);
+                    CFRelease(source);
+                    thread::sleep(Duration::from_millis(180));
+                    return;
+                }
 
-        if !front_app.is_empty() {
-            let activate_script = format!("tell application \"{}\" to activate", front_app);
-            let _ = Command::new("osascript")
-                .args(["-e", &activate_script])
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status();
-            thread::sleep(Duration::from_millis(180));
-        }
-
-        for _ in 0..3 {
-            let applescript = Command::new("osascript")
-                .args([
-                    "-e",
-                    "tell application \"System Events\" to keystroke \"c\" using command down",
-                ])
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status()
-                .map(|status| status.success())
-                .unwrap_or(false);
-
-            if applescript {
-                thread::sleep(Duration::from_millis(180));
-                return;
+                if !key_down.is_null() {
+                    CFRelease(key_down);
+                }
+                if !key_up.is_null() {
+                    CFRelease(key_up);
+                }
+                CFRelease(source);
             }
-
-            let javascript = Command::new("osascript")
-                .args([
-                    "-l",
-                    "JavaScript",
-                    "-e",
-                    "Application('System Events').keystroke('c', { using: 'command down' })",
-                ])
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status()
-                .map(|status| status.success())
-                .unwrap_or(false);
-
-            if javascript {
-                thread::sleep(Duration::from_millis(180));
-                return;
-            }
-
-            thread::sleep(Duration::from_millis(110));
         }
     }
 
@@ -496,12 +511,20 @@ pub fn capture_selected_text(handle: &tauri::AppHandle) -> Result<String, String
 
     #[cfg(target_os = "macos")]
     {
-        let (text, error_code) = get_selected_text_ax_direct();
+        let (text, denied) = capture_selection_via_accessibility();
         if let Some(text) = text {
             return Ok(text);
         }
 
-        accessibility_denied = error_code == K_AX_ERROR_API_DISABLED;
+        accessibility_denied = denied;
+        wait_for_macos_translate_shortcut_release();
+
+        let (text, denied_after_release) = capture_selection_via_accessibility();
+        if let Some(text) = text {
+            return Ok(text);
+        }
+
+        accessibility_denied |= denied_after_release;
         if accessibility_denied {
             eprintln!(
                 "[Abandon] Accessibility permission not granted, falling back to clipboard capture"
@@ -510,9 +533,6 @@ pub fn capture_selected_text(handle: &tauri::AppHandle) -> Result<String, String
     }
 
     let original_clipboard = read_clipboard_text(handle);
-
-    #[cfg(target_os = "macos")]
-    wait_for_macos_translate_shortcut_release();
 
     let mut copied_text = capture_selection_via_clipboard(handle, SHORTCUT_RELEASE_DELAY);
 

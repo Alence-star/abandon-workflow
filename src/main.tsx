@@ -3,7 +3,7 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import { isTauriRuntime, runtimeLabel } from "./services/runtime";
 
-const SERVICE_WORKER_VERSION = "20260708-2";
+const SERVICE_WORKER_VERSION = "20260708-3";
 
 window.onerror = function (msg, _source, _line, _col, error) {
   document.body.innerHTML =

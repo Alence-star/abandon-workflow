@@ -19,7 +19,7 @@ export const WordDetailView: React.FC = () => {
     return (
       <div className="wd">
         <div className="wd-back">
-          <button className="wd-back-btn" onClick={() => setViewMode("wordbook")}>
+          <button className="wd-back-btn" onClick={() => setViewMode("learning")}>
             返回
           </button>
         </div>
@@ -35,7 +35,7 @@ export const WordDetailView: React.FC = () => {
   const handleDelete = async () => {
     try {
       await removeWord(entry.word);
-      setViewMode("wordbook");
+      setViewMode("learning");
     } catch (error) {
       console.error("Failed to delete word:", error);
     }
@@ -54,7 +54,7 @@ export const WordDetailView: React.FC = () => {
   return (
     <div className="wd">
       <div className="wd-back">
-        <button className="wd-back-btn" onClick={() => setViewMode("wordbook")}>
+        <button className="wd-back-btn" onClick={() => setViewMode("learning")}>
           返回
         </button>
         <button className="wd-del-btn" onClick={handleDelete} title="删除单词">

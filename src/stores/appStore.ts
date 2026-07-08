@@ -10,7 +10,6 @@ export type ViewMode =
   | "translate"
   | "word"
   | "sentence"
-  | "wordbook"
   | "wordbook-detail"
   | "learning"
   | "settings"

@@ -93,7 +93,7 @@ export const TranslateView: React.FC = () => {
         collocations: wordInfo?.collocations?.join("\n") || null,
         memory_trick: wordInfo?.memory_trick || null,
       });
-      store.setError("已添加到生词本。");
+      store.setError("已添加到词本。");
       setTimeout(() => store.setError(null), 1800);
     } catch (error) {
       store.setError(`添加失败：${String(error)}`);
@@ -212,7 +212,7 @@ export const TranslateView: React.FC = () => {
                 >
                   <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z" />
                 </svg>
-                添加到生词本
+                添加到词本
               </button>
             </div>
           </div>
@@ -304,7 +304,7 @@ export const TranslateView: React.FC = () => {
                 >
                   <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z" />
                 </svg>
-                添加到生词本
+                添加到词本
               </button>
             </div>
           </div>
@@ -340,7 +340,7 @@ export const TranslateView: React.FC = () => {
             onClick={handleSaveWord}
             disabled={!inputText.trim()}
           >
-            添加生词
+            加入词本
           </button>
         </div>
         <p className="tv-hint">

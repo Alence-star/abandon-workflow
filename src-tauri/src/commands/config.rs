@@ -109,8 +109,6 @@ pub async fn set_config(
     set_effective_config_value(db.conn(), &key, &value)
         .map_err(|e| format!("保存配置失败: {}", e))?;
 
-    let _ = account_sync::push_current_user_snapshot(db.conn());
-
     Ok(())
 }
 

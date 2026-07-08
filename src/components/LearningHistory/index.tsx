@@ -58,7 +58,7 @@ export const LearningHistory: React.FC = () => {
   return (
     <div className="lh">
       <div className="lh-header">
-        <h3 className="lh-title">已学单词</h3>
+        <h3 className="lh-title">词本</h3>
       </div>
 
       {isLoading && <div className="lh-loading">加载中...</div>}

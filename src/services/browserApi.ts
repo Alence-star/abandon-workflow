@@ -28,6 +28,7 @@ const GLOBAL_ONLY_KEYS = new Set([
 const GITHUB_API_BASE = "https://api.github.com";
 const GITHUB_API_VERSION = "2022-11-28";
 const GITHUB_USER_AGENT = "Abandon/1.0.1";
+const GITHUB_REQUEST_TIMEOUT_MS = 12000;
 
 interface BrowserUser {
   id: number;
@@ -375,8 +376,13 @@ async function githubRequest(
   url: string,
   init?: RequestInit
 ): Promise<Response> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), GITHUB_REQUEST_TIMEOUT_MS);
+
+  try {
   return fetch(url, {
     ...init,
+    signal: controller.signal,
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: "application/vnd.github+json",
@@ -386,6 +392,14 @@ async function githubRequest(
       ...(init?.headers ?? {}),
     },
   });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("GitHub 云同步请求超时，请检查网络或令牌。");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timer);
+  }
 }
 
 async function githubFetchGist(
@@ -968,12 +982,7 @@ export async function getConfig(key: string): Promise<string | null> {
 export async function setConfig(key: string, value: string): Promise<void> {
   const state = readState();
   setConfigValue(state, key, value);
-  const currentUser = getCurrentUserRecord(state);
   writeState(state);
-
-  if (currentUser) {
-    await writeRemotePayload(state, currentUser);
-  }
 }
 
 export async function getRuntimePaths(): Promise<RuntimePaths> {

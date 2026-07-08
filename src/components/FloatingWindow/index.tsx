@@ -2,7 +2,6 @@ import React, { useEffect } from "react";
 import { useAppStore } from "../../stores/appStore";
 import { useThemeStore } from "../../stores/themeStore";
 import { TranslateView } from "../TranslateView";
-import { WordBook } from "../WordBook";
 import { WordDetailView } from "../WordBook/WordDetailView";
 import { LearningHistory } from "../LearningHistory";
 import { Settings } from "../Settings";
@@ -40,22 +39,6 @@ const IconBook = () => (
   >
     <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
     <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
-  </svg>
-);
-
-const IconHistory = () => (
-  <svg
-    width="16"
-    height="16"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <circle cx="12" cy="12" r="10" />
-    <polyline points="12 6 12 12 16 14" />
   </svg>
 );
 
@@ -110,7 +93,6 @@ export const FloatingWindow: React.FC = () => {
     "translate",
     "word",
     "sentence",
-    "wordbook",
     "wordbook-detail",
     "learning",
     "settings",
@@ -143,7 +125,6 @@ export const FloatingWindow: React.FC = () => {
         )}
 
         {["translate", "word", "sentence"].includes(viewMode) && <TranslateView />}
-        {viewMode === "wordbook" && <WordBook />}
         {viewMode === "wordbook-detail" && <WordDetailView />}
         {viewMode === "learning" && <LearningHistory />}
         {viewMode === "settings" && <Settings />}
@@ -186,20 +167,12 @@ export const FloatingWindow: React.FC = () => {
           <span className="nav-btn-label">翻译</span>
         </button>
         <button
-          className={`nav-btn ${viewMode === "wordbook" || viewMode === "wordbook-detail" ? "active" : ""}`}
-          onClick={() => navigate("wordbook")}
-          title="生词本"
+          className={`nav-btn ${viewMode === "learning" || viewMode === "wordbook-detail" ? "active" : ""}`}
+          onClick={() => navigate("learning")}
+          title="词本"
         >
           <IconBook />
           <span className="nav-btn-label">词本</span>
-        </button>
-        <button
-          className={`nav-btn ${viewMode === "learning" ? "active" : ""}`}
-          onClick={() => navigate("learning")}
-          title="已学单词"
-        >
-          <IconHistory />
-          <span className="nav-btn-label">已学</span>
         </button>
         <button
           className={`nav-btn ${viewMode === "voicefollowup" ? "active" : ""}`}
