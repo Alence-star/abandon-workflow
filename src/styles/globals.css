@@ -1652,8 +1652,9 @@ textarea {
 }
 
 .browser-runtime .bottom-bar {
+  position: relative;
   height: calc(var(--bottom-bar-height) + env(safe-area-inset-bottom));
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: calc(8px + env(safe-area-inset-bottom));
 }
 
 .browser-runtime .content-area,
@@ -1666,7 +1667,7 @@ textarea {
 @media (max-width: 640px) {
   .app-root.browser-runtime {
     --title-bar-height: 42px;
-    --bottom-bar-height: 74px;
+    --bottom-bar-height: 90px;
   }
 
   .browser-runtime .title-bar {
@@ -1679,24 +1680,41 @@ textarea {
   }
 
   .browser-runtime .bottom-bar {
-    gap: 8px;
-    padding: 8px 10px calc(10px + env(safe-area-inset-bottom));
-    box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.08);
+    align-items: stretch;
+    gap: 10px;
+    padding: 10px 12px calc(18px + env(safe-area-inset-bottom));
+    border-top: none;
+    background:
+      linear-gradient(180deg, rgba(251, 251, 253, 0.72) 0%, rgba(251, 251, 253, 0.94) 42%, rgba(251, 251, 253, 1) 100%);
+    backdrop-filter: blur(18px);
+    box-shadow: 0 -10px 28px rgba(15, 23, 42, 0.08);
+  }
+
+  [data-theme="dark"] .browser-runtime .bottom-bar {
+    background:
+      linear-gradient(180deg, rgba(28, 28, 30, 0.78) 0%, rgba(28, 28, 30, 0.94) 42%, rgba(28, 28, 30, 1) 100%);
   }
 
   .browser-runtime .nav-btn {
-    height: 56px;
-    min-height: 56px;
+    height: 60px;
+    min-height: 60px;
     flex-direction: column;
-    gap: 4px;
-    border-radius: 16px;
+    gap: 5px;
+    border-radius: 18px;
     font-size: 10px;
     font-weight: 600;
+    background: rgba(255, 255, 255, 0.72);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+  }
+
+  [data-theme="dark"] .browser-runtime .nav-btn {
+    background: rgba(44, 44, 46, 0.82);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
   }
 
   .browser-runtime .nav-btn svg {
-    width: 20px;
-    height: 20px;
+    width: 21px;
+    height: 21px;
   }
 
   .browser-runtime .nav-btn-label {
@@ -1723,6 +1741,10 @@ textarea {
   .browser-runtime .form-input,
   .browser-runtime .wb-search-input {
     font-size: 16px;
+  }
+
+  .browser-runtime .content-area {
+    padding-bottom: 6px;
   }
 
   .browser-runtime .tv-paste-btn,

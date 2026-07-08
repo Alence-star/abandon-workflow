@@ -38,6 +38,24 @@ const K_CF_ALLOCATOR_DEFAULT: CFAllocatorRef = std::ptr::null();
 const K_CF_STRING_ENCODING_UTF8: u32 = 0x08000100;
 #[cfg(target_os = "macos")]
 const K_AX_ERROR_API_DISABLED: i32 = -25211;
+#[cfg(target_os = "macos")]
+const K_CG_EVENT_SOURCE_STATE_COMBINED_SESSION_STATE: i32 = 0;
+#[cfg(target_os = "macos")]
+const MACOS_KEYCODE_T: u16 = 17;
+#[cfg(target_os = "macos")]
+const MACOS_KEYCODE_LEFT_COMMAND: u16 = 55;
+#[cfg(target_os = "macos")]
+const MACOS_KEYCODE_RIGHT_COMMAND: u16 = 54;
+#[cfg(target_os = "macos")]
+const MACOS_KEYCODE_LEFT_SHIFT: u16 = 56;
+#[cfg(target_os = "macos")]
+const MACOS_KEYCODE_RIGHT_SHIFT: u16 = 60;
+#[cfg(target_os = "macos")]
+const MACOS_SHORTCUT_RELEASE_TIMEOUT: Duration = Duration::from_millis(1200);
+#[cfg(target_os = "macos")]
+const MACOS_SHORTCUT_RELEASE_POLL_INTERVAL: Duration = Duration::from_millis(25);
+#[cfg(target_os = "macos")]
+const MACOS_SHORTCUT_RELEASE_SETTLE_DELAY: Duration = Duration::from_millis(45);
 
 #[cfg(target_os = "macos")]
 #[link(name = "ApplicationServices", kind = "framework")]
@@ -60,6 +78,7 @@ extern "C" {
         buffer_size: isize,
         encoding: u32,
     ) -> u8;
+    fn CGEventSourceKeyState(state_id: i32, key: u16) -> bool;
     fn CFRelease(cf: CFTypeRef);
 }
 
@@ -311,6 +330,42 @@ fn capture_selection_via_clipboard(handle: &tauri::AppHandle, release_delay: Dur
     wait_for_stable_copied_text(handle, &clipboard_marker)
 }
 
+#[cfg(target_os = "macos")]
+fn is_macos_translate_shortcut_pressed() -> bool {
+    unsafe {
+        CGEventSourceKeyState(
+            K_CG_EVENT_SOURCE_STATE_COMBINED_SESSION_STATE,
+            MACOS_KEYCODE_T,
+        ) || CGEventSourceKeyState(
+            K_CG_EVENT_SOURCE_STATE_COMBINED_SESSION_STATE,
+            MACOS_KEYCODE_LEFT_COMMAND,
+        ) || CGEventSourceKeyState(
+            K_CG_EVENT_SOURCE_STATE_COMBINED_SESSION_STATE,
+            MACOS_KEYCODE_RIGHT_COMMAND,
+        ) || CGEventSourceKeyState(
+            K_CG_EVENT_SOURCE_STATE_COMBINED_SESSION_STATE,
+            MACOS_KEYCODE_LEFT_SHIFT,
+        ) || CGEventSourceKeyState(
+            K_CG_EVENT_SOURCE_STATE_COMBINED_SESSION_STATE,
+            MACOS_KEYCODE_RIGHT_SHIFT,
+        )
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn wait_for_macos_translate_shortcut_release() {
+    let started_at = Instant::now();
+
+    while started_at.elapsed() < MACOS_SHORTCUT_RELEASE_TIMEOUT {
+        if !is_macos_translate_shortcut_pressed() {
+            thread::sleep(MACOS_SHORTCUT_RELEASE_SETTLE_DELAY);
+            return;
+        }
+
+        thread::sleep(MACOS_SHORTCUT_RELEASE_POLL_INTERVAL);
+    }
+}
+
 struct TranslateCaptureGuard {
     handle: tauri::AppHandle,
 }
@@ -455,6 +510,10 @@ pub fn capture_selected_text(handle: &tauri::AppHandle) -> Result<String, String
     }
 
     let original_clipboard = read_clipboard_text(handle);
+
+    #[cfg(target_os = "macos")]
+    wait_for_macos_translate_shortcut_release();
+
     let mut copied_text = capture_selection_via_clipboard(handle, SHORTCUT_RELEASE_DELAY);
 
     if copied_text.is_empty() {

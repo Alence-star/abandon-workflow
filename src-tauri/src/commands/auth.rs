@@ -70,15 +70,6 @@ fn set_current_user(conn: &Connection, user_id: i64) -> Result<(), String> {
         .map_err(|error| format!("写入登录状态失败: {}", error))
 }
 
-fn sync_after_login(conn: &Connection, user_id: i64, username: &str) {
-    if let Err(error) = account_sync::pull_user_snapshot(conn, user_id, username) {
-        eprintln!("[Abandon] login sync pull failed: {}", error);
-    }
-    if let Err(error) = account_sync::push_user_snapshot(conn, user_id, username) {
-        eprintln!("[Abandon] login sync push failed: {}", error);
-    }
-}
-
 fn provision_local_user_from_remote(
     conn: &Connection,
     username: &str,
@@ -187,7 +178,6 @@ pub async fn register_user(
 
     let user_id = db.conn().last_insert_rowid();
     set_current_user(db.conn(), user_id)?;
-    sync_after_login(db.conn(), user_id, &username);
 
     Ok(UserSession { id: user_id, username })
 }
@@ -255,7 +245,6 @@ pub async fn login_user(
     };
 
     set_current_user(db.conn(), user_id)?;
-    sync_after_login(db.conn(), user_id, &username);
 
     Ok(UserSession { id: user_id, username })
 }

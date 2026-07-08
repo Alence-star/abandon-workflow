@@ -807,10 +807,11 @@ export async function addWord(params: AddWordParams): Promise<void> {
 
   setWordbookScope(state, entries);
   const currentUser = getCurrentUserRecord(state);
+  writeState(state);
+
   if (currentUser) {
     await writeRemotePayload(state, currentUser);
   }
-  writeState(state);
 }
 
 export async function removeWord(word: string): Promise<void> {
@@ -820,10 +821,11 @@ export async function removeWord(word: string): Promise<void> {
   );
   setWordbookScope(state, nextEntries);
   const currentUser = getCurrentUserRecord(state);
+  writeState(state);
+
   if (currentUser) {
     await writeRemotePayload(state, currentUser);
   }
-  writeState(state);
 }
 
 export async function updateWordFamiliarity(
@@ -838,10 +840,11 @@ export async function updateWordFamiliarity(
   );
   setWordbookScope(state, nextEntries);
   const currentUser = getCurrentUserRecord(state);
+  writeState(state);
+
   if (currentUser) {
     await writeRemotePayload(state, currentUser);
   }
-  writeState(state);
 }
 
 export async function listWords(): Promise<WordbookEntry[]> {
@@ -966,10 +969,11 @@ export async function setConfig(key: string, value: string): Promise<void> {
   const state = readState();
   setConfigValue(state, key, value);
   const currentUser = getCurrentUserRecord(state);
+  writeState(state);
+
   if (currentUser) {
     await writeRemotePayload(state, currentUser);
   }
-  writeState(state);
 }
 
 export async function getRuntimePaths(): Promise<RuntimePaths> {
@@ -1017,7 +1021,6 @@ export async function registerUser(
 
   state.users[normalized] = user;
   state.currentUsername = normalized;
-  await writeRemotePayload(state, user);
   writeState(state);
   return toUserSession(user);
 }
@@ -1041,11 +1044,6 @@ export async function loginUser(
     }
 
     state.currentUsername = normalized;
-    const remotePayload = await loadRemotePayload(state, normalized);
-    if (remotePayload) {
-      ensureLocalUserFromPayload(state, remotePayload, digest);
-    }
-    await writeRemotePayload(state, state.users[normalized]);
     writeState(state);
     return toUserSession(state.users[normalized]);
   }
@@ -1063,7 +1061,6 @@ export async function loginUser(
 
   const user = ensureLocalUserFromPayload(state, remotePayload, digest);
   state.currentUsername = normalized;
-  await writeRemotePayload(state, user);
   writeState(state);
   return toUserSession(user);
 }

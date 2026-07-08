@@ -3,6 +3,8 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import { isTauriRuntime, runtimeLabel } from "./services/runtime";
 
+const SERVICE_WORKER_VERSION = "20260708-2";
+
 window.onerror = function (msg, _source, _line, _col, error) {
   document.body.innerHTML =
     '<div style="padding:20px;font-size:13px;color:var(--color-error,#ef4444)">' +
@@ -25,7 +27,45 @@ async function registerServiceWorker() {
   }
 
   try {
-    await navigator.serviceWorker.register("./sw.js");
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (refreshing) {
+        return;
+      }
+
+      refreshing = true;
+      window.location.reload();
+    });
+
+    const registration = await navigator.serviceWorker.register(
+      `./sw.js?v=${SERVICE_WORKER_VERSION}`
+    );
+
+    const activateWaitingWorker = (worker: ServiceWorker | null) => {
+      worker?.postMessage({ type: "SKIP_WAITING" });
+    };
+
+    if (registration.waiting) {
+      activateWaitingWorker(registration.waiting);
+    }
+
+    registration.addEventListener("updatefound", () => {
+      const installing = registration.installing;
+      if (!installing) {
+        return;
+      }
+
+      installing.addEventListener("statechange", () => {
+        if (
+          installing.state === "installed" &&
+          navigator.serviceWorker.controller
+        ) {
+          activateWaitingWorker(registration.waiting ?? installing);
+        }
+      });
+    });
+
+    await registration.update();
   } catch (error) {
     console.warn("[Abandon] service worker registration failed:", error);
   }

@@ -74,28 +74,52 @@ export const Settings: React.FC = () => {
     }
   }
 
-  async function handleSave() {
+  function hasSyncBackendConfigured() {
+    return Boolean(githubSyncToken.trim()) || (isTauriRuntime && Boolean(syncDir.trim()));
+  }
+
+  async function runPostAuthSync(successMessage?: string) {
+    if (!hasSyncBackendConfigured()) {
+      if (successMessage) {
+        setSyncStatus(successMessage);
+      }
+      return;
+    }
+
+    setSyncStatus("正在同步当前账号数据...");
     try {
-      await Promise.all([
-        setConfig("api_key", apiKey.trim()),
-        setConfig("api_base_url", apiBaseUrl.trim() || "https://api.deepseek.com"),
-        setConfig("api_model", apiModel.trim() || "deepseek-chat"),
-        setConfig("sync_dir", syncDir.trim()),
-        setConfig("github_sync_token", githubSyncToken.trim()),
-      ]);
+      const result = await syncNow();
+      setSyncStatus(result);
+    } catch (error) {
+      setSyncStatus(`账号已登录，但同步失败：${String(error)}`);
+    }
+  }
+
+  async function handleSave() {
+    setSyncStatus("");
+    try {
+      await setConfig("api_key", apiKey.trim());
+      await setConfig("api_base_url", apiBaseUrl.trim() || "https://api.deepseek.com");
+      await setConfig("api_model", apiModel.trim() || "deepseek-chat");
+      await setConfig("sync_dir", syncDir.trim());
+      await setConfig("github_sync_token", githubSyncToken.trim());
 
       setSaved(true);
-      if (githubSyncToken.trim()) {
-        setSyncStatus("GitHub 云同步令牌已保存。");
+      if (currentUser) {
+        await runPostAuthSync("同步配置已保存。");
+      } else if (githubSyncToken.trim()) {
+        setSyncStatus("GitHub 云同步令牌已保存，登录后可立即同步。");
       } else if (syncDir.trim()) {
-        setSyncStatus("共享同步目录已保存。");
+        setSyncStatus("共享同步目录已保存，登录后可立即同步。");
       } else {
-        setSyncStatus("未配置同步后端。");
+        setSyncStatus("尚未配置同步后端。");
       }
+
       await loadSettings();
       window.setTimeout(() => setSaved(false), 2000);
     } catch (error) {
-      alert(`保存失败：${String(error)}`);
+      setSyncStatus(`配置已保存到本地，但同步校验失败：${String(error)}`);
+      await loadSettings();
     }
   }
 
@@ -111,6 +135,7 @@ export const Settings: React.FC = () => {
     }
 
     setAuthLoading(true);
+    setAuthStatus("");
     try {
       const user =
         authMode === "register"
@@ -126,10 +151,7 @@ export const Settings: React.FC = () => {
           : `登录成功，当前账号：${user.username}`
       );
 
-      if (githubSyncToken.trim() || syncDir.trim()) {
-        setSyncStatus("当前账号数据已按最新配置刷新同步。");
-      }
-
+      await runPostAuthSync("当前账号已登录，本地数据已切换。");
       await loadSettings();
     } catch (error) {
       setAuthStatus(String(error));
@@ -144,6 +166,7 @@ export const Settings: React.FC = () => {
       await logoutUser();
       setCurrentUser(null);
       setAuthStatus("已退出登录。");
+      setSyncStatus("");
       await loadSettings();
     } catch (error) {
       setAuthStatus(String(error));
@@ -153,7 +176,7 @@ export const Settings: React.FC = () => {
   }
 
   async function handleManualSync() {
-    setSyncStatus("同步中...");
+    setSyncStatus("正在同步...");
     try {
       const result = await syncNow();
       setSyncStatus(result);
@@ -409,7 +432,7 @@ export const Settings: React.FC = () => {
 
           <p className="settings-note">
             {isTauriRuntime
-              ? "mac 默认数据库路径通常在 ~/Library/Application Support/com.abandon.english/abandon.db。"
+              ? "mac 默认数据库路径通常位于 ~/Library/Application Support/com.abandon.english/abandon.db。"
               : "PWA 数据保存在当前浏览器本地存储中；切换浏览器或清空站点数据会丢失本地缓存。"}
           </p>
         </div>
