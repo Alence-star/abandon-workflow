@@ -305,6 +305,40 @@ function buildSyncPayload(user: BrowserUser): SyncPayload {
   };
 }
 
+function mergeSyncPayloads(remote: SyncPayload, local: SyncPayload): SyncPayload {
+  const remoteIsNewer = Date.parse(remote.exported_at) >= Date.parse(local.exported_at);
+  const words = new Map<string, SyncWordbookEntry>();
+
+  for (const entry of [...local.wordbook, ...remote.wordbook]) {
+    const key = normalizeWord(entry.word);
+    if (!key) continue;
+    const existing = words.get(key);
+    if (!existing) {
+      words.set(key, { ...entry });
+      continue;
+    }
+    const preferred = remoteIsNewer ? entry : existing;
+    words.set(key, {
+      ...preferred,
+      familiarity: Math.max(existing.familiarity || 0, entry.familiarity || 0),
+    });
+  }
+
+  return {
+    ...remote,
+    schema_version: Math.max(remote.schema_version || 1, local.schema_version || 1),
+    exported_at: nowIso(),
+    password_hash: remote.password_hash ?? local.password_hash ?? null,
+    password_sha256: remote.password_sha256 ?? local.password_sha256 ?? null,
+    wordbook: [...words.values()],
+    user_config: [
+      ...new Map(
+        [...local.user_config, ...remote.user_config].map((entry) => [entry.key, entry])
+      ).values(),
+    ],
+  };
+}
+
 function ensureLocalUserFromPayload(
   state: BrowserState,
   payload: SyncPayload,
@@ -1095,7 +1129,11 @@ export async function syncNow(): Promise<string> {
   const remotePayload = await loadRemotePayload(state, user.username);
   const pulled = Boolean(remotePayload);
   const activeUser = remotePayload
-    ? ensureLocalUserFromPayload(state, remotePayload, user.password_sha256)
+    ? ensureLocalUserFromPayload(
+        state,
+        mergeSyncPayloads(remotePayload, buildSyncPayload(user)),
+        user.password_sha256
+      )
     : user;
   const pushed = await writeRemotePayload(state, activeUser);
   writeState(state);

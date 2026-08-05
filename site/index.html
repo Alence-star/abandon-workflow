@@ -6,8 +6,12 @@
     <title>Abandon Download Hub</title>
     <meta
       name="description"
-      content="Abandon 的 macOS、iOS 与手机 PWA 下载入口。"
+      content="下载 Abandon：面向 macOS 的英语翻译与学习助手，也支持手机 PWA。"
     />
+    <meta property="og:title" content="Abandon — 随时翻译，专注学习" />
+    <meta property="og:description" content="获取最新 macOS 安装包，或在手机上使用 Abandon PWA。" />
+    <meta property="og:image" content="https://alence-star.github.io/abandon-workflow/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" href="./favicon.ico" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -15,7 +19,7 @@
       href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Manrope:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./styles.css?v=20260707b" />
+    <link rel="stylesheet" href="./styles.css?v=20260805a" />
   </head>
   <body>
     <div class="page-shell">
@@ -23,36 +27,41 @@
       <div class="glow glow-right"></div>
 
       <main class="layout">
+        <nav class="site-nav" aria-label="主导航">
+          <a class="brand" href="./">Abandon<span>.</span></a>
+          <div class="nav-links">
+            <a href="#downloads">下载</a>
+            <a href="#mobile">移动端</a>
+            <a href="https://github.com/Alence-star/abandon-workflow" target="_blank" rel="noreferrer">GitHub</a>
+          </div>
+        </nav>
         <section class="hero">
-          <p class="eyebrow">Abandon Download Hub</p>
-          <h1>直接拿最新安装包，不再翻 Actions。</h1>
-          <p class="hero-copy">
-            这个页面会直接读取 GitHub Releases，优先展示最新的 macOS 构建包，同时提供 iOS 安装包与手机 PWA 入口。现在的 PWA 已经复用桌面端同一套 React UI，不再是独立的轻量静态页。
-          </p>
-          <div class="hero-actions">
-            <a
-              class="button button-primary"
-              href="https://github.com/Alence-star/abandon-workflow/releases"
-              target="_blank"
-              rel="noreferrer"
-            >
-              打开 Releases
-            </a>
-            <a
-              class="button button-secondary"
-              href="https://github.com/Alence-star/abandon-workflow"
-              target="_blank"
-              rel="noreferrer"
-            >
-              打开代码仓库
-            </a>
-            <a class="button button-secondary" href="./pwa/">
-              打开手机 PWA
-            </a>
+          <div class="hero-copy-block">
+            <p class="eyebrow">English learning, without the friction</p>
+            <h1>翻译随手可得，学习自然发生。</h1>
+            <p class="hero-copy">
+              Abandon 是为 macOS 设计的英语学习助手。选中文本即可翻译，单词自动沉淀为你的学习记录，并可跨设备同步。
+            </p>
+            <div class="hero-actions">
+              <a class="button button-primary" href="#downloads">下载 macOS 版</a>
+              <a class="button button-secondary" href="./pwa/">在手机上打开</a>
+            </div>
+            <div class="hero-facts" aria-label="产品特点">
+              <span>⌘ ⇧ T 即时翻译</span><span>词本云同步</span><span>macOS + PWA</span>
+            </div>
+          </div>
+          <div class="hero-art" aria-hidden="true">
+            <div class="hero-art-window">
+              <div class="window-dots"><i></i><i></i><i></i></div>
+              <p>Make learning a daily habit.</p>
+              <strong>让学习成为每天的习惯。</strong>
+              <div class="hero-art-line"></div>
+              <small>Abandon Translate</small>
+            </div>
           </div>
         </section>
 
-        <section class="panel">
+        <section id="downloads" class="panel">
           <div class="panel-head">
             <div>
               <p class="panel-kicker">Latest Internal Build</p>
@@ -91,7 +100,7 @@
           </div>
         </section>
 
-        <section class="panel">
+        <section id="mobile" class="panel">
           <div class="panel-head compact">
             <div>
               <p class="panel-kicker">Mobile PWA</p>
@@ -143,7 +152,7 @@
       </main>
     </div>
 
-    <script src="./data/releases.js?v=20260707b"></script>
-    <script src="./app.js?v=20260707b" defer></script>
+    <script src="./data/releases.js?v=20260805a"></script>
+    <script src="./app.js?v=20260805a" defer></script>
   </body>
 </html>

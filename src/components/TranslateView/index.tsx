@@ -106,6 +106,13 @@ export const TranslateView: React.FC = () => {
 
   return (
     <div className="translate-view">
+      {!isLoading && !showWordResult && !showSentenceResult && !store.error && (
+        <div className="tv-welcome">
+          <span className="tv-welcome-eyebrow">ABANDON TRANSLATE</span>
+          <h1>快速理解每一句英文</h1>
+          <p>输入文本，或使用全局快捷键翻译当前选中内容。</p>
+        </div>
+      )}
       {store.error && (
         <div className="tv-error-banner">
           <div className="tv-error-icon">!</div>
@@ -312,8 +319,9 @@ export const TranslateView: React.FC = () => {
       )}
 
       <div className="tv-input-section">
-        <div className="section-label" style={{ padding: "0 16px", marginTop: 8 }}>
-          输入英文并翻译
+        <div className="tv-input-heading">
+          <span>输入英文</span>
+          <span>Enter 翻译 · Shift + Enter 换行</span>
         </div>
         <textarea
           ref={inputRef}

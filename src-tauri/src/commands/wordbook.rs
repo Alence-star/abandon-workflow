@@ -87,9 +87,16 @@ pub async fn add_word(
 
     db.conn()
         .execute(
-            "INSERT OR REPLACE INTO wordbook
+            "INSERT INTO wordbook
              (user_id, word, translation, phonetic, collocations, memory_trick, notes)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+             ON CONFLICT(user_id, word)
+             DO UPDATE SET
+               translation = excluded.translation,
+               phonetic = excluded.phonetic,
+               collocations = excluded.collocations,
+               memory_trick = excluded.memory_trick,
+               notes = excluded.notes",
             rusqlite::params![
                 user_id,
                 request.word.trim(),

@@ -198,6 +198,56 @@ fn select_latest_payload(payloads: Vec<SyncPayload>) -> Option<SyncPayload> {
         .max_by_key(resolve_payload_timestamp)
 }
 
+/// Combine snapshots instead of treating the newest complete export as the only
+/// source of truth. This keeps words added independently on two devices.
+fn merge_sync_payloads(primary: SyncPayload, secondary: SyncPayload) -> SyncPayload {
+    let primary_is_newer = resolve_payload_timestamp(&primary) >= resolve_payload_timestamp(&secondary);
+    let mut words: HashMap<String, SyncWordbookEntry> = HashMap::new();
+
+    for entry in secondary.wordbook.into_iter().chain(primary.wordbook.into_iter()) {
+        let key = entry.word.trim().to_lowercase();
+        if key.is_empty() {
+            continue;
+        }
+        match words.get_mut(&key) {
+            Some(existing) => {
+                // Learning progress is monotonic; never lose it during a merge.
+                let familiarity = existing.familiarity.max(entry.familiarity);
+                if primary_is_newer {
+                    *existing = SyncWordbookEntry { familiarity, ..entry };
+                } else {
+                    existing.familiarity = familiarity;
+                }
+            }
+            None => {
+                words.insert(key, entry);
+            }
+        }
+    }
+
+    let mut configs: HashMap<String, String> = secondary
+        .user_config
+        .into_iter()
+        .map(|entry| (entry.key, entry.value))
+        .collect();
+    for entry in primary.user_config {
+        configs.insert(entry.key, entry.value);
+    }
+
+    SyncPayload {
+        schema_version: primary.schema_version.max(secondary.schema_version),
+        username: primary.username,
+        exported_at: Utc::now().to_rfc3339(),
+        password_hash: primary.password_hash.or(secondary.password_hash),
+        password_sha256: primary.password_sha256.or(secondary.password_sha256),
+        wordbook: words.into_values().collect(),
+        user_config: configs
+            .into_iter()
+            .map(|(key, value)| SyncUserConfigEntry { key, value })
+            .collect(),
+    }
+}
+
 fn parse_sync_payload(raw: &str, source: &str) -> Result<SyncPayload, String> {
     serde_json::from_str(raw).map_err(|error| format!("解析同步数据失败({}): {}", source, error))
 }
@@ -790,7 +840,9 @@ pub fn pull_user_snapshot(conn: &Connection, user_id: i64, username: &str) -> Re
         return Ok(false);
     };
 
-    apply_sync_payload_to_user(conn, user_id, &payload)?;
+    let local_payload = build_sync_payload(conn, user_id, username)?;
+    let merged_payload = merge_sync_payloads(payload, local_payload);
+    apply_sync_payload_to_user(conn, user_id, &merged_payload)?;
     Ok(true)
 }
 

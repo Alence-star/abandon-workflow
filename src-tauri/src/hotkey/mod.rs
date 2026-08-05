@@ -270,8 +270,8 @@ fn store_text(handle: &tauri::AppHandle, text: String) {
 fn show_main_window(handle: &tauri::AppHandle) {
     if let Some(window) = handle.get_webview_window("main") {
         let _ = window.show();
-        thread::sleep(Duration::from_millis(120));
         let _ = window.set_focus();
+        let _ = window.unminimize();
     }
 }
 
@@ -374,7 +374,14 @@ fn capture_selection_via_clipboard(handle: &tauri::AppHandle, release_delay: Dur
     write_clipboard_text(handle, &clipboard_marker);
     thread::sleep(release_delay);
     copy_selection();
-    wait_for_stable_copied_text(handle, &clipboard_marker)
+    let copied = wait_for_stable_copied_text(handle, &clipboard_marker);
+    if copied.is_empty() {
+        // Some macOS apps need a second copy event after the shortcut is fully released.
+        thread::sleep(Duration::from_millis(120));
+        copy_selection();
+        return wait_for_stable_copied_text(handle, &clipboard_marker);
+    }
+    copied
 }
 
 #[cfg(target_os = "macos")]
