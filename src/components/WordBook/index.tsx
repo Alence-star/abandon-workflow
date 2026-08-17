@@ -71,6 +71,14 @@ export const WordBook: React.FC = () => {
         />
       </div>
 
+      <div className="wb-overview">
+        <div>
+          <span className="wb-overview-title">我的词汇</span>
+          <span className="wb-overview-subtitle">点击卡片查看详细释义</span>
+        </div>
+        <span className="wb-overview-count">{words.length} 个</span>
+      </div>
+
       {/* Card list */}
       <div className="wb-list">
         {isLoading && <div className="wb-loading">加载中...</div>}

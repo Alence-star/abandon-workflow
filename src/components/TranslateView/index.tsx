@@ -39,11 +39,14 @@ export const TranslateView: React.FC = () => {
   }, [inputText]);
 
   useEffect(() => {
-    if (!isLoading && previousLoading.current && selectedText) {
-      setInputText(selectedText);
+    if (!isLoading && previousLoading.current) {
+      // A completed request should leave the composer ready for the next word.
+      // The result keeps its own copy in the store, so clearing this does not
+      // affect saving, playback, or viewing the translation just returned.
+      setInputText("");
     }
     previousLoading.current = isLoading;
-  }, [isLoading, selectedText]);
+  }, [isLoading]);
 
   const doTranslate = useCallback((text: string) => {
     void handleTranslateText(text);
