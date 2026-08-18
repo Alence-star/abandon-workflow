@@ -55,10 +55,16 @@ export const LearningHistory: React.FC = () => {
     setViewMode("wordbook-detail");
   };
 
+  const totalWords = groups.reduce((total, group) => total + group.count, 0);
+
   return (
     <div className="lh">
       <div className="lh-header">
-        <h3 className="lh-title">词本</h3>
+        <div>
+          <h3 className="lh-title">词本</h3>
+          <p className="lh-subtitle">按日期整理，点击卡片查看详情</p>
+        </div>
+        <span className="lh-total">{totalWords} 个</span>
       </div>
 
       {isLoading && <div className="lh-loading">加载中...</div>}

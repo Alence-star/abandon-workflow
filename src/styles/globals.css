@@ -1267,6 +1267,9 @@ textarea {
 }
 
 .lh-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 10px 14px;
   border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
@@ -1276,6 +1279,21 @@ textarea {
   font-size: 14px;
   font-weight: 600;
   color: var(--color-text-primary);
+}
+
+.lh-subtitle {
+  margin-top: 2px;
+  color: var(--color-text-tertiary);
+  font-size: 10px;
+}
+
+.lh-total {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--color-primary-bg);
+  color: var(--color-primary);
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .lh-loading {
@@ -1349,7 +1367,10 @@ textarea {
 }
 
 .lh-group-words {
-  padding: 4px 10px 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  padding: 5px 10px 11px;
 }
 
 .lh-card {
@@ -1357,7 +1378,7 @@ textarea {
   align-items: flex-start;
   gap: 8px;
   padding: 8px 10px;
-  margin-bottom: 4px;
+  min-height: 74px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -1426,6 +1447,13 @@ textarea {
 .lh-card-trans {
   font-size: 12px;
   color: var(--color-text-secondary);
+  line-height: 1.45;
+}
+
+@media (max-width: 320px) {
+  .lh-group-words {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* ========== Settings ========== */
