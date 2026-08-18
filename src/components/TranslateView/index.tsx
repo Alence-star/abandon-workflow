@@ -6,6 +6,17 @@ import { PronunciationButton } from "../common/PronunciationButton";
 
 const isMac = navigator.platform.toUpperCase().includes("MAC");
 const modKey = isMac ? "Cmd" : "Ctrl";
+const treeWords = [
+  ["discover", 47, 5, 11], ["learn", 34, 10, 16], ["curious", 59, 11, 12],
+  ["language", 20, 18, 11], ["wonder", 43, 17, 15], ["meaning", 65, 19, 12],
+  ["explore", 10, 29, 10], ["listen", 28, 27, 14], ["create", 51, 26, 15],
+  ["bright", 73, 29, 11], ["world", 19, 37, 16], ["memory", 39, 35, 11],
+  ["practice", 57, 37, 14], ["growth", 79, 39, 10], ["translate", 7, 47, 12],
+  ["vocabulary", 27, 46, 11], ["connect", 47, 46, 16], ["story", 68, 48, 13],
+  ["future", 18, 57, 11], ["voice", 37, 56, 14], ["knowledge", 55, 57, 11],
+  ["journey", 75, 58, 12], ["word", 47, 65, 13], ["phrase", 49, 72, 12],
+  ["sentence", 47, 79, 11], ["understand", 46, 86, 10], ["speak", 48, 92, 11],
+] as const;
 
 export const TranslateView: React.FC = () => {
   const store = useAppStore();
@@ -110,10 +121,17 @@ export const TranslateView: React.FC = () => {
   return (
     <div className="translate-view">
       {!isLoading && !showWordResult && !showSentenceResult && !store.error && (
-        <div className="tv-welcome">
-          <span className="tv-welcome-eyebrow">ABANDON TRANSLATE</span>
-          <h1>快速理解每一句英文</h1>
-          <p>输入文本，或使用全局快捷键翻译当前选中内容。</p>
+        <div className="tv-tree-hero" aria-label="由英文单词组成的树">
+          <div className="tv-word-tree" aria-hidden="true">
+            {treeWords.map(([word, left, top, size]) => (
+              <span
+                key={word}
+                style={{ left: `${left}%`, top: `${top}%`, fontSize: `${size}px` }}
+              >
+                {word}
+              </span>
+            ))}
+          </div>
         </div>
       )}
       {store.error && (

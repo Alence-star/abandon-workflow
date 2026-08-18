@@ -10,7 +10,7 @@ export const LearningHistory: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [expandedLabels, setExpandedLabels] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState("全部");
+  const [filter, setFilter] = useState("今天");
   const setViewMode = useAppStore((store) => store.setViewMode);
   const setSelectedWordbookEntry = useAppStore(
     (store) => store.setSelectedWordbookEntry
@@ -61,20 +61,48 @@ export const LearningHistory: React.FC = () => {
   const visibleGroups = useMemo(() => {
     const keyword = query.trim().toLowerCase();
     return groups
-      .filter((group) => filter === "全部" || filter === "未掌握" || group.label === filter)
+      .filter((group) => filter === "全部" || group.label === filter)
       .map((group) => {
         const words = group.words.filter((entry) => {
           const matchesKeyword =
             !keyword ||
             entry.word.toLowerCase().includes(keyword) ||
             entry.translation.toLowerCase().includes(keyword);
-          const matchesFilter = filter !== "未掌握" || entry.familiarity < 3;
-          return matchesKeyword && matchesFilter;
+          return matchesKeyword;
         });
         return { ...group, words, count: words.length };
       })
       .filter((group) => group.words.length > 0);
   }, [filter, groups, query]);
+  const allVisibleWords = visibleGroups.flatMap((group) => group.words);
+
+  const renderWordCard = (entry: WordbookEntry) => (
+    <div key={entry.id} className="lh-card" onClick={() => openDetail(entry)}>
+      <span
+        className="lh-dot"
+        style={{ background: FAMILIARITY_COLORS[entry.familiarity] }}
+      />
+      <div className="lh-card-body">
+        <div className="lh-card-top">
+          <span className="lh-card-word">{entry.word}</span>
+          {entry.phonetic && <span className="lh-card-phonetic">{entry.phonetic}</span>}
+          <button
+            className="lh-card-speak"
+            onClick={(event) => {
+              event.stopPropagation();
+              void playBritishPronunciation(entry.word);
+            }}
+            title="朗读"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polygon points="5 3 19 12 5 21 5 3" />
+            </svg>
+          </button>
+        </div>
+        <div className="lh-card-trans">{entry.translation}</div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="lh">
@@ -99,7 +127,7 @@ export const LearningHistory: React.FC = () => {
           />
         </label>
         <div className="lh-filters" aria-label="词本筛选">
-          {["全部", "今天", "本周", "未掌握"].map((item) => (
+          {["今天", "本周", "全部"].map((item) => (
             <button
               key={item}
               className={`lh-filter ${filter === item ? "active" : ""}`}
@@ -131,7 +159,11 @@ export const LearningHistory: React.FC = () => {
         </div>
       )}
 
-      {!isLoading &&
+      {!isLoading && filter === "全部" && visibleGroups.length > 0 && (
+        <div className="lh-all-words">{allVisibleWords.map(renderWordCard)}</div>
+      )}
+
+      {!isLoading && filter !== "全部" &&
         visibleGroups.map((group) => (
           <div key={group.label} className="lh-group">
             <button
@@ -159,48 +191,7 @@ export const LearningHistory: React.FC = () => {
             </button>
 
             {expandedLabels.has(group.label) && (
-              <div className="lh-group-words">
-                {group.words.map((entry) => (
-                  <div
-                    key={entry.id}
-                    className="lh-card"
-                    onClick={() => openDetail(entry)}
-                  >
-                    <span
-                      className="lh-dot"
-                      style={{ background: FAMILIARITY_COLORS[entry.familiarity] }}
-                    />
-                    <div className="lh-card-body">
-                      <div className="lh-card-top">
-                        <span className="lh-card-word">{entry.word}</span>
-                        {entry.phonetic && (
-                          <span className="lh-card-phonetic">{entry.phonetic}</span>
-                        )}
-                        <button
-                          className="lh-card-speak"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            void playBritishPronunciation(entry.word);
-                          }}
-                          title="朗读"
-                        >
-                          <svg
-                            width="12"
-                            height="12"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                          >
-                            <polygon points="5 3 19 12 5 21 5 3" />
-                          </svg>
-                        </button>
-                      </div>
-                      <div className="lh-card-trans">{entry.translation}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <div className="lh-group-words">{group.words.map(renderWordCard)}</div>
             )}
           </div>
         ))}
