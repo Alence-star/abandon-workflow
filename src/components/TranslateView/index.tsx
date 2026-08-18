@@ -1,26 +1,24 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { handleTranslateText } from "../../App";
 import { useAppStore } from "../../stores/appStore";
-import { addWord, getSelectedText, speakText } from "../../services/api";
+import { addWord, getSelectedText, listWords, speakText } from "../../services/api";
 import { PronunciationButton } from "../common/PronunciationButton";
 
 const isMac = navigator.platform.toUpperCase().includes("MAC");
 const modKey = isMac ? "Cmd" : "Ctrl";
-const treeWords = [
-  ["discover", 47, 5, 11], ["learn", 34, 10, 16], ["curious", 59, 11, 12],
-  ["language", 20, 18, 11], ["wonder", 43, 17, 15], ["meaning", 65, 19, 12],
-  ["explore", 10, 29, 10], ["listen", 28, 27, 14], ["create", 51, 26, 15],
-  ["bright", 73, 29, 11], ["world", 19, 37, 16], ["memory", 39, 35, 11],
-  ["practice", 57, 37, 14], ["growth", 79, 39, 10], ["translate", 7, 47, 12],
-  ["vocabulary", 27, 46, 11], ["connect", 47, 46, 16], ["story", 68, 48, 13],
-  ["future", 18, 57, 11], ["voice", 37, 56, 14], ["knowledge", 55, 57, 11],
-  ["journey", 75, 58, 12], ["word", 47, 65, 13], ["phrase", 49, 72, 12],
-  ["sentence", 47, 79, 11], ["understand", 46, 86, 10], ["speak", 48, 92, 11],
+const treePositions = [
+  [47, 5, 11], [34, 10, 16], [59, 11, 12], [20, 18, 11], [43, 17, 15],
+  [65, 19, 12], [10, 29, 10], [28, 27, 14], [51, 26, 15], [73, 29, 11],
+  [19, 37, 16], [39, 35, 11], [57, 37, 14], [79, 39, 10], [7, 47, 12],
+  [27, 46, 11], [47, 46, 16], [68, 48, 13], [18, 57, 11], [37, 56, 14],
+  [55, 57, 11], [75, 58, 12], [47, 65, 13], [49, 72, 12], [47, 79, 11],
+  [46, 86, 10], [48, 92, 11],
 ] as const;
 
 export const TranslateView: React.FC = () => {
   const store = useAppStore();
   const [inputText, setInputText] = useState(store.selectedText || "");
+  const [treeWords, setTreeWords] = useState<string[]>([]);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const previousLoading = useRef(store.isLoading);
 
@@ -38,6 +36,12 @@ export const TranslateView: React.FC = () => {
       inputRef.current.focus();
     }
   }, [isLoading]);
+
+  useEffect(() => {
+    void listWords()
+      .then((entries) => setTreeWords(entries.slice(0, treePositions.length).map((entry) => entry.word)))
+      .catch(() => setTreeWords([]));
+  }, []);
 
   useEffect(() => {
     const textarea = inputRef.current;
@@ -107,6 +111,10 @@ export const TranslateView: React.FC = () => {
         collocations: wordInfo?.collocations?.join("\n") || null,
         memory_trick: wordInfo?.memory_trick || null,
       });
+      setTreeWords((existing) => [
+        word.trim(),
+        ...existing.filter((item) => item.toLowerCase() !== word.trim().toLowerCase()),
+      ].slice(0, treePositions.length));
       store.setError("已添加到词本。");
       setTimeout(() => store.setError(null), 1800);
     } catch (error) {
@@ -123,14 +131,20 @@ export const TranslateView: React.FC = () => {
       {!isLoading && !showWordResult && !showSentenceResult && !store.error && (
         <div className="tv-tree-hero" aria-label="由英文单词组成的树">
           <div className="tv-word-tree" aria-hidden="true">
-            {treeWords.map(([word, left, top, size]) => (
+            {treeWords.map((word, index) => {
+              const [left, top, size] = treePositions[index];
+              return (
               <span
-                key={word}
+                key={`${word}-${index}`}
                 style={{ left: `${left}%`, top: `${top}%`, fontSize: `${size}px` }}
               >
                 {word}
               </span>
-            ))}
+              );
+            })}
+            {treeWords.length === 0 && (
+              <span className="tv-tree-empty">收藏的单词会在这里长成一棵树</span>
+            )}
           </div>
         </div>
       )}

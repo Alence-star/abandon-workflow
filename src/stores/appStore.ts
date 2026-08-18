@@ -48,7 +48,7 @@ interface AppStore {
 }
 
 export const useAppStore = create<AppStore>((set) => ({
-  viewMode: "idle",
+  viewMode: "translate",
   setViewMode: (mode) => set({ viewMode: mode }),
 
   selectedText: "",
@@ -77,7 +77,7 @@ export const useAppStore = create<AppStore>((set) => ({
 
   reset: () =>
     set({
-      viewMode: "idle",
+      viewMode: "translate",
       selectedText: "",
       isLoading: false,
       error: null,

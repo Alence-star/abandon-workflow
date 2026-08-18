@@ -511,18 +511,6 @@ textarea {
   height: 250px;
 }
 
-.tv-word-tree::after {
-  content: "";
-  position: absolute;
-  left: 49%;
-  bottom: 2%;
-  width: 3px;
-  height: 22%;
-  border-radius: 999px;
-  background: linear-gradient(to bottom, rgba(64, 111, 79, 0.45), rgba(96, 78, 55, 0.65));
-  transform: translateX(-50%);
-}
-
 .tv-word-tree span {
   position: absolute;
   z-index: 1;
@@ -544,6 +532,16 @@ textarea {
 }
 
 [data-theme="dark"] .tv-word-tree span { color: #94c9a9; }
+
+.tv-word-tree .tv-tree-empty {
+  left: 50%;
+  top: 48%;
+  color: var(--color-text-tertiary);
+  font-family: inherit;
+  font-size: 12px !important;
+  font-weight: 500;
+  letter-spacing: 0;
+}
 
 .tv-loading {
   display: flex;
