@@ -1264,20 +1264,27 @@ textarea {
   display: flex;
   flex-direction: column;
   height: 100%;
+  background: #f8f7f1;
+  overflow-y: auto;
+}
+
+[data-theme="dark"] .lh {
+  background: var(--color-bg);
 }
 
 .lh-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--color-border);
+  padding: 16px 14px 10px;
+  border-bottom: none;
   flex-shrink: 0;
 }
 
 .lh-title {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 20px;
+  font-weight: 750;
+  letter-spacing: -0.5px;
   color: var(--color-text-primary);
 }
 
@@ -1288,12 +1295,79 @@ textarea {
 }
 
 .lh-total {
-  padding: 4px 8px;
+  padding: 5px 9px;
   border-radius: 999px;
-  background: var(--color-primary-bg);
-  color: var(--color-primary);
+  background: #e6f1e8;
+  color: #237154;
   font-size: 11px;
   font-weight: 700;
+}
+
+.lh-toolbar {
+  padding: 0 14px 12px;
+  flex-shrink: 0;
+}
+
+.lh-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 13px;
+  border: 1px solid #ece9df;
+  border-radius: 15px;
+  background: var(--color-surface);
+  color: #47856c;
+  box-shadow: 0 2px 8px rgba(63, 82, 66, 0.05);
+}
+
+.lh-search:focus-within {
+  border-color: #74a78f;
+  box-shadow: 0 0 0 3px rgba(116, 167, 143, 0.12);
+}
+
+.lh-search input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: 13px;
+}
+
+.lh-search input::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+.lh-filters {
+  display: flex;
+  gap: 7px;
+  padding-top: 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.lh-filters::-webkit-scrollbar { display: none; }
+
+.lh-filter {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  border: 1px solid #e9e6dc;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.lh-filter.active {
+  border-color: #2c8061;
+  background: #2c8061;
+  color: #fff;
+  box-shadow: 0 3px 8px rgba(44, 128, 97, 0.2);
 }
 
 .lh-loading {
@@ -1324,7 +1398,12 @@ textarea {
 }
 
 .lh-group {
-  border-bottom: 1px solid var(--color-border);
+  margin: 0 12px 10px;
+  border: 1px solid rgba(228, 224, 212, 0.8);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.7);
+  overflow: hidden;
+  box-shadow: 0 3px 12px rgba(63, 82, 66, 0.04);
 }
 
 .lh-group-header {
@@ -1332,7 +1411,7 @@ textarea {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 14px;
+  padding: 11px 12px;
   border: none;
   background: transparent;
   cursor: pointer;
@@ -1340,13 +1419,13 @@ textarea {
 }
 
 .lh-group-header:hover {
-  background: var(--color-bg-secondary);
+  background: rgba(232, 244, 235, 0.72);
 }
 
 .lh-group-label {
   font-size: 13px;
   font-weight: 600;
-  color: var(--color-text-primary);
+  color: #285c49;
 }
 
 .lh-group-count {
@@ -1370,7 +1449,7 @@ textarea {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 7px;
-  padding: 5px 10px 11px;
+  padding: 2px 8px 9px;
 }
 
 .lh-card {
@@ -1380,15 +1459,16 @@ textarea {
   padding: 8px 10px;
   min-height: 74px;
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
+  border: 1px solid #eeeae1;
+  border-radius: 12px;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .lh-card:hover {
-  border-color: var(--color-primary);
-  box-shadow: var(--shadow-sm);
+  border-color: #77a990;
+  box-shadow: 0 4px 12px rgba(47, 91, 70, 0.1);
+  transform: translateY(-1px);
 }
 
 .lh-dot {
@@ -1412,7 +1492,7 @@ textarea {
 }
 
 .lh-card-word {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--color-text-primary);
 }
@@ -1449,6 +1529,16 @@ textarea {
   color: var(--color-text-secondary);
   line-height: 1.45;
 }
+
+[data-theme="dark"] .lh-search,
+[data-theme="dark"] .lh-filter,
+[data-theme="dark"] .lh-group {
+  border-color: var(--color-border);
+  background: var(--color-surface);
+}
+
+[data-theme="dark"] .lh-group-label { color: var(--color-text-primary); }
+[data-theme="dark"] .lh-total { background: rgba(52, 211, 153, 0.16); color: var(--color-success); }
 
 @media (max-width: 320px) {
   .lh-group-words {

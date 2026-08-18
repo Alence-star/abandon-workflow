@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useAppStore } from "../../stores/appStore";
 import { getWordsByDate, playBritishPronunciation } from "../../services/api";
 import type { DateGroup, WordbookEntry } from "../../types";
@@ -9,6 +9,8 @@ export const LearningHistory: React.FC = () => {
   const [groups, setGroups] = useState<DateGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedLabels, setExpandedLabels] = useState<Set<string>>(new Set());
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState("全部");
   const setViewMode = useAppStore((store) => store.setViewMode);
   const setSelectedWordbookEntry = useAppStore(
     (store) => store.setSelectedWordbookEntry
@@ -56,6 +58,23 @@ export const LearningHistory: React.FC = () => {
   };
 
   const totalWords = groups.reduce((total, group) => total + group.count, 0);
+  const visibleGroups = useMemo(() => {
+    const keyword = query.trim().toLowerCase();
+    return groups
+      .filter((group) => filter === "全部" || filter === "未掌握" || group.label === filter)
+      .map((group) => {
+        const words = group.words.filter((entry) => {
+          const matchesKeyword =
+            !keyword ||
+            entry.word.toLowerCase().includes(keyword) ||
+            entry.translation.toLowerCase().includes(keyword);
+          const matchesFilter = filter !== "未掌握" || entry.familiarity < 3;
+          return matchesKeyword && matchesFilter;
+        });
+        return { ...group, words, count: words.length };
+      })
+      .filter((group) => group.words.length > 0);
+  }, [filter, groups, query]);
 
   return (
     <div className="lh">
@@ -67,9 +86,34 @@ export const LearningHistory: React.FC = () => {
         <span className="lh-total">{totalWords} 个</span>
       </div>
 
+      <div className="lh-toolbar">
+        <label className="lh-search">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <circle cx="11" cy="11" r="7" />
+            <path d="m20 20-3.5-3.5" />
+          </svg>
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="搜索单词或中文释义"
+          />
+        </label>
+        <div className="lh-filters" aria-label="词本筛选">
+          {["全部", "今天", "本周", "未掌握"].map((item) => (
+            <button
+              key={item}
+              className={`lh-filter ${filter === item ? "active" : ""}`}
+              onClick={() => setFilter(item)}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {isLoading && <div className="lh-loading">加载中...</div>}
 
-      {!isLoading && groups.length === 0 && (
+      {!isLoading && visibleGroups.length === 0 && (
         <div className="lh-empty">
           <svg
             width="36"
@@ -82,13 +126,13 @@ export const LearningHistory: React.FC = () => {
             <circle cx="12" cy="12" r="10" />
             <polyline points="12 6 12 12 16 14" />
           </svg>
-          <p className="lh-empty-title">还没有学习记录</p>
-          <p className="lh-empty-hint">翻译后收藏单词，这里会自动累计。</p>
+          <p className="lh-empty-title">{groups.length ? "没有匹配的单词" : "还没有学习记录"}</p>
+          <p className="lh-empty-hint">{groups.length ? "试试更换关键词或筛选条件。" : "翻译后收藏单词，这里会自动累计。"}</p>
         </div>
       )}
 
       {!isLoading &&
-        groups.map((group) => (
+        visibleGroups.map((group) => (
           <div key={group.label} className="lh-group">
             <button
               className="lh-group-header"
