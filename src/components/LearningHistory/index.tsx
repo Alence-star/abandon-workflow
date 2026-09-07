@@ -1,11 +1,13 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useAppStore } from "../../stores/appStore";
 import { getWordsByDate, playBritishPronunciation } from "../../services/api";
 import type { DateGroup, WordbookEntry } from "../../types";
 
 const FAMILIARITY_COLORS = ["#ef4444", "#f97316", "#eab308", "#9ca3af"];
+let savedScrollTop = 0;
 
 export const LearningHistory: React.FC = () => {
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [groups, setGroups] = useState<DateGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedLabels, setExpandedLabels] = useState<Set<string>>(new Set());
@@ -40,6 +42,14 @@ export const LearningHistory: React.FC = () => {
     void load();
   }, [load]);
 
+  useLayoutEffect(() => {
+    if (isLoading || !savedScrollTop) return;
+    const frame = requestAnimationFrame(() => {
+      scrollContainerRef.current?.scrollTo({ top: savedScrollTop });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [isLoading]);
+
   const toggleExpand = (label: string) => {
     setExpandedLabels((previous) => {
       const next = new Set(previous);
@@ -53,6 +63,7 @@ export const LearningHistory: React.FC = () => {
   };
 
   const openDetail = (entry: WordbookEntry) => {
+    savedScrollTop = scrollContainerRef.current?.scrollTop ?? 0;
     setSelectedWordbookEntry(entry);
     setViewMode("wordbook-detail");
   };
@@ -105,7 +116,13 @@ export const LearningHistory: React.FC = () => {
   );
 
   return (
-    <div className="lh">
+    <div
+      ref={scrollContainerRef}
+      className="lh"
+      onScroll={(event) => {
+        savedScrollTop = event.currentTarget.scrollTop;
+      }}
+    >
       <div className="lh-header">
         <div>
           <h3 className="lh-title">词本</h3>
