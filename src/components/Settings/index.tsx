@@ -493,10 +493,14 @@ export const Settings: React.FC = () => {
             />
           </div>
 
-          {!loading && !apiKey && <p className="config-warning">请先保存可用的 API Key。</p>}
+          {!loading && !apiKey && (
+            <p className="config-warning">
+              当前使用免密公共翻译；填写 API Key 后可启用联想记忆、搭配、例句和语法分析。
+            </p>
+          )}
 
           <p className="settings-note">
-            单词查询会尽量返回完整中文释义、常见搭配、记忆提示和例句；句子模式会同时给出翻译和语法拆解。
+            API Key 为可选项。未填写时仍可查询单词和翻译句子；填写后会返回更丰富的学习内容。
           </p>
         </div>
       </div>

@@ -4,15 +4,26 @@ import { getWordsByDate, playBritishPronunciation } from "../../services/api";
 import type { DateGroup, WordbookEntry } from "../../types";
 
 const FAMILIARITY_COLORS = ["#ef4444", "#f97316", "#eab308", "#9ca3af"];
-let savedScrollTop = 0;
+const savedViewState = {
+  initialized: false,
+  listScrollTop: 0,
+  contentScrollTop: 0,
+  query: "",
+  filter: "今天",
+  expandedLabels: new Set<string>(),
+  anchorId: null as number | null,
+  anchorViewportTop: 0,
+};
 
 export const LearningHistory: React.FC = () => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [groups, setGroups] = useState<DateGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [expandedLabels, setExpandedLabels] = useState<Set<string>>(new Set());
-  const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState("今天");
+  const [expandedLabels, setExpandedLabels] = useState<Set<string>>(
+    () => new Set(savedViewState.expandedLabels)
+  );
+  const [query, setQuery] = useState(savedViewState.query);
+  const [filter, setFilter] = useState(savedViewState.filter);
   const setViewMode = useAppStore((store) => store.setViewMode);
   const setSelectedWordbookEntry = useAppStore(
     (store) => store.setSelectedWordbookEntry
@@ -24,13 +35,18 @@ export const LearningHistory: React.FC = () => {
       const result = await getWordsByDate();
       setGroups(result);
 
-      const autoExpanded = new Set<string>();
-      result.forEach((group) => {
-        if (group.label === "今天" || group.label === "昨天") {
-          autoExpanded.add(group.label);
-        }
-      });
-      setExpandedLabels(autoExpanded);
+      if (savedViewState.initialized) {
+        setExpandedLabels(new Set(savedViewState.expandedLabels));
+      } else {
+        const autoExpanded = new Set<string>();
+        result.forEach((group) => {
+          if (group.label === "今天" || group.label === "昨天") {
+            autoExpanded.add(group.label);
+          }
+        });
+        savedViewState.expandedLabels = new Set(autoExpanded);
+        setExpandedLabels(autoExpanded);
+      }
     } catch (error) {
       console.error("[Abandon] Failed to load learning history:", error);
     } finally {
@@ -43,12 +59,36 @@ export const LearningHistory: React.FC = () => {
   }, [load]);
 
   useLayoutEffect(() => {
-    if (isLoading || !savedScrollTop) return;
+    if (isLoading || !savedViewState.initialized) return;
     const frame = requestAnimationFrame(() => {
-      scrollContainerRef.current?.scrollTo({ top: savedScrollTop });
+      const list = scrollContainerRef.current;
+      const content = list?.closest<HTMLElement>(".content-area");
+      if (list) list.scrollTop = savedViewState.listScrollTop;
+      if (content) content.scrollTop = savedViewState.contentScrollTop;
+
+      const anchor = savedViewState.anchorId
+        ? list?.querySelector<HTMLElement>(`[data-word-id="${savedViewState.anchorId}"]`)
+        : null;
+      if (anchor) {
+        const offset = anchor.getBoundingClientRect().top - savedViewState.anchorViewportTop;
+        const activeScroller =
+          list && list.scrollHeight > list.clientHeight ? list : content;
+        if (activeScroller) activeScroller.scrollTop += offset;
+      }
     });
     return () => cancelAnimationFrame(frame);
   }, [isLoading]);
+
+  const saveViewState = () => {
+    const list = scrollContainerRef.current;
+    const content = list?.closest<HTMLElement>(".content-area");
+    savedViewState.initialized = true;
+    savedViewState.listScrollTop = list?.scrollTop ?? 0;
+    savedViewState.contentScrollTop = content?.scrollTop ?? 0;
+    savedViewState.query = query;
+    savedViewState.filter = filter;
+    savedViewState.expandedLabels = new Set(expandedLabels);
+  };
 
   const toggleExpand = (label: string) => {
     setExpandedLabels((previous) => {
@@ -58,12 +98,18 @@ export const LearningHistory: React.FC = () => {
       } else {
         next.add(label);
       }
+      savedViewState.expandedLabels = new Set(next);
       return next;
     });
   };
 
-  const openDetail = (entry: WordbookEntry) => {
-    savedScrollTop = scrollContainerRef.current?.scrollTop ?? 0;
+  const openDetail = (
+    entry: WordbookEntry,
+    event: React.MouseEvent<HTMLDivElement>
+  ) => {
+    saveViewState();
+    savedViewState.anchorId = entry.id;
+    savedViewState.anchorViewportTop = event.currentTarget.getBoundingClientRect().top;
     setSelectedWordbookEntry(entry);
     setViewMode("wordbook-detail");
   };
@@ -88,7 +134,12 @@ export const LearningHistory: React.FC = () => {
   const allVisibleWords = visibleGroups.flatMap((group) => group.words);
 
   const renderWordCard = (entry: WordbookEntry) => (
-    <div key={entry.id} className="lh-card" onClick={() => openDetail(entry)}>
+    <div
+      key={entry.id}
+      data-word-id={entry.id}
+      className="lh-card"
+      onClick={(event) => openDetail(entry, event)}
+    >
       <span
         className="lh-dot"
         style={{ background: FAMILIARITY_COLORS[entry.familiarity] }}
@@ -120,7 +171,7 @@ export const LearningHistory: React.FC = () => {
       ref={scrollContainerRef}
       className="lh"
       onScroll={(event) => {
-        savedScrollTop = event.currentTarget.scrollTop;
+        savedViewState.listScrollTop = event.currentTarget.scrollTop;
       }}
     >
       <div className="lh-header">
@@ -139,7 +190,11 @@ export const LearningHistory: React.FC = () => {
           </svg>
           <input
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => {
+              const value = event.target.value;
+              savedViewState.query = value;
+              setQuery(value);
+            }}
             placeholder="搜索单词或中文释义"
           />
         </label>
@@ -148,7 +203,13 @@ export const LearningHistory: React.FC = () => {
             <button
               key={item}
               className={`lh-filter ${filter === item ? "active" : ""}`}
-              onClick={() => setFilter(item)}
+              onClick={() => {
+                savedViewState.filter = item;
+                savedViewState.listScrollTop = 0;
+                savedViewState.contentScrollTop = 0;
+                setFilter(item);
+                scrollContainerRef.current?.scrollTo({ top: 0 });
+              }}
             >
               {item}
             </button>

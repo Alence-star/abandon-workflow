@@ -20,6 +20,8 @@ interface AddWordParams {
 const STORAGE_KEY = "abandon.browser.state.v2";
 const DEFAULT_API_BASE_URL = "https://api.deepseek.com";
 const DEFAULT_API_MODEL = "deepseek-chat";
+const PUBLIC_TRANSLATION_API = "https://api.mymemory.translated.net/get";
+const PUBLIC_TRANSLATION_CHUNK_BYTES = 450;
 const GLOBAL_ONLY_KEYS = new Set([
   "sync_dir",
   "github_sync_token",
@@ -662,6 +664,70 @@ function normalizeWordInfo(info: WordInfo, fallbackWord: string): WordInfo {
   };
 }
 
+const publicTranslationCache = new Map<string, string>();
+
+function splitPublicTranslationText(text: string): string[] {
+  const encoder = new TextEncoder();
+  const chunks: string[] = [];
+  let current = "";
+
+  for (const token of text.match(/\S+\s*/g) ?? [text]) {
+    if (encoder.encode(current + token).length <= PUBLIC_TRANSLATION_CHUNK_BYTES) {
+      current += token;
+      continue;
+    }
+
+    if (current.trim()) {
+      chunks.push(current.trim());
+      current = "";
+    }
+
+    for (const character of token) {
+      if (encoder.encode(current + character).length > PUBLIC_TRANSLATION_CHUNK_BYTES) {
+        if (current.trim()) chunks.push(current.trim());
+        current = character;
+      } else {
+        current += character;
+      }
+    }
+  }
+
+  if (current.trim()) chunks.push(current.trim());
+  return chunks;
+}
+
+async function publicTranslateText(text: string): Promise<string> {
+  const lookup = text.trim();
+  const cached = publicTranslationCache.get(lookup);
+  if (cached) return cached;
+
+  const translations: string[] = [];
+  for (const chunk of splitPublicTranslationText(lookup)) {
+    const url = new URL(PUBLIC_TRANSLATION_API);
+    url.searchParams.set("q", chunk);
+    url.searchParams.set("langpair", "en|zh-CN");
+
+    let response: Response;
+    try {
+      response = await fetch(url.toString());
+    } catch (error) {
+      throw new Error(`免费翻译接口暂时无法访问：${String(error)}`);
+    }
+
+    const json = await response.json().catch(() => null);
+    const translated = json?.responseData?.translatedText;
+    if (!response.ok || typeof translated !== "string" || !translated.trim()) {
+      const details = json?.responseDetails || response.statusText || "未知错误";
+      throw new Error(`免费翻译接口返回异常：${details}`);
+    }
+    translations.push(translated.trim());
+  }
+
+  const result = translations.join(" ");
+  publicTranslationCache.set(lookup, result);
+  return result;
+}
+
 let activeUtterance: SpeechSynthesisUtterance | null = null;
 
 async function getSpeechVoices(): Promise<SpeechSynthesisVoice[]> {
@@ -752,11 +818,14 @@ async function speakWithBrowser(
 
 export async function translateText(text: string): Promise<TranslationResult> {
   const state = readState();
-  const translation = await callModelApi(
-    state,
-    "You are a precise English-to-Chinese translator. Translate the user's text into natural Chinese. Return only the final Chinese translation without explanations.",
-    text
-  );
+  const hasApiKey = Boolean(getConfigValue(state, "api_key")?.trim());
+  const translation = hasApiKey
+    ? await callModelApi(
+        state,
+        "You are a precise English-to-Chinese translator. Translate the user's text into natural Chinese. Return only the final Chinese translation without explanations.",
+        text
+      )
+    : await publicTranslateText(text);
 
   return {
     original: text,
@@ -772,6 +841,17 @@ export async function getWordInfo(word: string): Promise<WordInfo> {
   }
 
   const state = readState();
+  if (!getConfigValue(state, "api_key")?.trim()) {
+    return {
+      word: lookup,
+      phonetic: "",
+      translation: await publicTranslateText(lookup),
+      collocations: [],
+      memory_trick: "",
+      example_sentences: [],
+    };
+  }
+
   const result = await callModelApi(
     state,
     "You are an English-Chinese dictionary editor. Given one English word or a very short phrase, return strict JSON with exactly these fields: {\"word\":\"original word or phrase\",\"phonetic\":\"UK IPA such as /.../, or empty string if unavailable\",\"translation\":\"Chinese dictionary-style summary. Group common meanings by part of speech using multiple lines, for example: n. 1. meaning one 2. meaning two\\nv. 1. meaning one 2. meaning two. Keep it concise but complete, covering the most common meanings.\",\"collocations\":[\"common phrase - 中文意思\",\"common phrase - 中文意思\"],\"memory_trick\":\"Chinese mnemonic, word root, prefix/suffix, or usage tip. Leave empty if not useful.\",\"example_sentences\":[{\"english\":\"Short natural example sentence.\",\"chinese\":\"对应的自然中文。\"}]}. Return 2 to 3 common example sentences when useful. Use Chinese in translation and memory_trick. Do not use markdown.",
@@ -807,6 +887,17 @@ export async function getWordInfo(word: string): Promise<WordInfo> {
 
 export async function analyzeSentence(text: string): Promise<SentenceAnalysis> {
   const state = readState();
+  if (!getConfigValue(state, "api_key")?.trim()) {
+    return {
+      translation: await publicTranslateText(text),
+      grammar: {
+        sentence_structure: "配置 API Key 后可查看",
+        tense: "配置 API Key 后可查看",
+        clauses: [],
+      },
+    };
+  }
+
   const result = await callModelApi(
     state,
     'Analyze the English sentence and return strict JSON with this shape: {"translation":"natural Chinese translation","grammar":{"sentence_structure":"brief Chinese description","tense":"Chinese tense description","clauses":[{"clause_type":"Chinese clause label","content":"original clause text"}]}}.',

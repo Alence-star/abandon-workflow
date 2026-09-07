@@ -57,6 +57,90 @@ struct ApiConfig {
     model: String,
 }
 
+const PUBLIC_TRANSLATION_API: &str = "https://api.mymemory.translated.net/get";
+const PUBLIC_TRANSLATION_CHUNK_BYTES: usize = 450;
+
+fn has_api_key(state: &State<'_, AppState>) -> Result<bool, String> {
+    let db = state.db.lock().map_err(|e| format!("数据库加锁失败: {}", e))?;
+    let conn = db.conn();
+    let api_key = config::get_effective_config_value(conn, "api_key")
+        .map_err(|e| format!("读取 API Key 失败: {}", e))?
+        .filter(|value| !value.trim().is_empty())
+        .or(
+            config::get_effective_config_value(conn, "openai_api_key")
+                .map_err(|e| format!("读取备用 API Key 失败: {}", e))?
+                .filter(|value| !value.trim().is_empty()),
+        );
+    Ok(api_key.is_some())
+}
+
+fn split_public_translation_text(text: &str) -> Vec<String> {
+    let mut chunks = Vec::new();
+    let mut current = String::new();
+
+    for token in text.split_inclusive(char::is_whitespace) {
+        if current.len() + token.len() <= PUBLIC_TRANSLATION_CHUNK_BYTES {
+            current.push_str(token);
+            continue;
+        }
+
+        if !current.trim().is_empty() {
+            chunks.push(current.trim().to_string());
+            current.clear();
+        }
+
+        for character in token.chars() {
+            if current.len() + character.len_utf8() > PUBLIC_TRANSLATION_CHUNK_BYTES {
+                if !current.trim().is_empty() {
+                    chunks.push(current.trim().to_string());
+                }
+                current.clear();
+            }
+            current.push(character);
+        }
+    }
+
+    if !current.trim().is_empty() {
+        chunks.push(current.trim().to_string());
+    }
+    chunks
+}
+
+async fn public_translate_text(text: &str) -> Result<String, String> {
+    let client = Client::new();
+    let mut translations = Vec::new();
+
+    for chunk in split_public_translation_text(text.trim()) {
+        let response = client
+            .get(PUBLIC_TRANSLATION_API)
+            .query(&[("q", chunk.as_str()), ("langpair", "en|zh-CN")])
+            .send()
+            .await
+            .map_err(|e| format!("免费翻译接口暂时无法访问: {}", e))?;
+        let status = response.status();
+        let json: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| format!("解析免费翻译响应失败 (status {}): {}", status, e))?;
+        let translated = json
+            .get("responseData")
+            .and_then(|value| value.get("translatedText"))
+            .and_then(|value| value.as_str())
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| {
+                let details = json
+                    .get("responseDetails")
+                    .and_then(|value| value.as_str())
+                    .unwrap_or("未知错误");
+                format!("免费翻译接口返回异常 (status {}): {}", status, details)
+            })?;
+        translations.push(translated.to_string());
+    }
+
+    Ok(translations.join(" "))
+}
+
 fn get_api_config(state: &State<'_, AppState>) -> Result<ApiConfig, String> {
     let db = state.db.lock().map_err(|e| format!("数据库加锁失败: {}", e))?;
     let conn = db.conn();
@@ -256,7 +340,11 @@ pub async fn translate_text(
 ) -> Result<TranslationResult, String> {
     let system_prompt = "You are a precise English-to-Chinese translator. Translate the user's text into natural Chinese. Return only the final Chinese translation without explanations.";
 
-    let translation = call_api(&state, system_prompt, &text, None).await?;
+    let translation = if has_api_key(&state)? {
+        call_api(&state, system_prompt, &text, None).await?
+    } else {
+        public_translate_text(&text).await?
+    };
 
     Ok(TranslationResult {
         original: text,
@@ -271,6 +359,17 @@ pub async fn analyze_sentence(
     state: State<'_, AppState>,
 ) -> Result<SentenceAnalysis, String> {
     let system_prompt = "Analyze the English sentence and return strict JSON with this shape: {\"translation\":\"natural Chinese translation\",\"grammar\":{\"sentence_structure\":\"brief Chinese description\",\"tense\":\"Chinese tense description\",\"clauses\":[{\"clause_type\":\"Chinese clause label\",\"content\":\"original clause text\"}]}}.";
+
+    if !has_api_key(&state)? {
+        return Ok(SentenceAnalysis {
+            translation: public_translate_text(&text).await?,
+            grammar: GrammarInfo {
+                sentence_structure: "配置 API Key 后可查看".into(),
+                tense: "配置 API Key 后可查看".into(),
+                clauses: vec![],
+            },
+        });
+    }
 
     let result = call_api(&state, system_prompt, &text, Some("json_object")).await?;
 
@@ -302,6 +401,17 @@ pub async fn get_word_info(
         if let Some(cached) = load_cached_word_info(db.conn(), &lookup)? {
             return Ok(cached);
         }
+    }
+
+    if !has_api_key(&state)? {
+        return Ok(WordInfo {
+            word: lookup.clone(),
+            phonetic: String::new(),
+            translation: public_translate_text(&lookup).await?,
+            collocations: vec![],
+            memory_trick: String::new(),
+            example_sentences: vec![],
+        });
     }
 
     let system_prompt = "You are an English-Chinese dictionary editor. Given one English word or a very short phrase, return strict JSON with exactly these fields: {\"word\":\"original word or phrase\",\"phonetic\":\"UK IPA such as /.../, or empty string if unavailable\",\"translation\":\"Chinese dictionary-style summary. Group common meanings by part of speech using multiple lines, for example: n. 1. 含义一 2. 含义二\\nv. 1. 含义一 2. 含义二. Keep it concise but complete, covering the most common meanings.\",\"collocations\":[\"common phrase — 中文意思\",\"common phrase — 中文意思\"],\"memory_trick\":\"Chinese mnemonic, word root, prefix/suffix, or usage tip. Leave empty if not useful.\",\"example_sentences\":[{\"english\":\"Short natural example sentence.\",\"chinese\":\"对应的自然中文。\"}]}. Return 2 to 3 common example sentences when useful. Use Chinese in translation and memory_trick. Do not use markdown.";
