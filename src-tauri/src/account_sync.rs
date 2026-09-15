@@ -225,12 +225,13 @@ fn merge_sync_payloads(primary: SyncPayload, secondary: SyncPayload) -> SyncPayl
         }
     }
 
-    let mut configs: HashMap<String, String> = secondary
-        .user_config
-        .into_iter()
-        .map(|entry| (entry.key, entry.value))
-        .collect();
-    for entry in primary.user_config {
+    let mut configs: HashMap<String, String> = HashMap::new();
+    let (older_configs, newer_configs) = if primary_is_newer {
+        (secondary.user_config, primary.user_config)
+    } else {
+        (primary.user_config, secondary.user_config)
+    };
+    for entry in older_configs.into_iter().chain(newer_configs) {
         configs.insert(entry.key, entry.value);
     }
 

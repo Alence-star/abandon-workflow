@@ -335,7 +335,10 @@ function mergeSyncPayloads(remote: SyncPayload, local: SyncPayload): SyncPayload
     wordbook: [...words.values()],
     user_config: [
       ...new Map(
-        [...local.user_config, ...remote.user_config].map((entry) => [entry.key, entry])
+        (remoteIsNewer
+          ? [...local.user_config, ...remote.user_config]
+          : [...remote.user_config, ...local.user_config]
+        ).map((entry) => [entry.key, entry])
       ).values(),
     ],
   };
@@ -1149,8 +1152,8 @@ export async function registerUser(
     username: normalized,
     password_sha256: await passwordDigest(normalized, password),
     password_hash: null,
-    wordbook: [],
-    config: {},
+    wordbook: cloneEntries(state.guestWordbook),
+    config: { ...state.guestConfig },
   };
 
   state.users[normalized] = user;

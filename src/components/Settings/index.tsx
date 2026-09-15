@@ -102,14 +102,22 @@ export const Settings: React.FC = () => {
     })();
   }
 
+  async function saveSyncBackendConfig() {
+    await setConfig("sync_dir", syncDir.trim());
+    await setConfig("github_sync_token", githubSyncToken.trim());
+  }
+
+  async function saveApiConfig() {
+    await setConfig("api_key", apiKey.trim());
+    await setConfig("api_base_url", apiBaseUrl.trim() || "https://api.deepseek.com");
+    await setConfig("api_model", apiModel.trim() || "deepseek-chat");
+  }
+
   async function handleSave() {
     setSyncStatus("");
     try {
-      await setConfig("api_key", apiKey.trim());
-      await setConfig("api_base_url", apiBaseUrl.trim() || "https://api.deepseek.com");
-      await setConfig("api_model", apiModel.trim() || "deepseek-chat");
-      await setConfig("sync_dir", syncDir.trim());
-      await setConfig("github_sync_token", githubSyncToken.trim());
+      await saveSyncBackendConfig();
+      await saveApiConfig();
 
       setSaved(true);
       if (currentUser) {
@@ -144,11 +152,17 @@ export const Settings: React.FC = () => {
     setAuthLoading(true);
     setAuthStatus("");
     try {
+      // Login on a new device needs the GitHub token before it can discover
+      // the remote account. API settings are saved after authentication so
+      // they belong to the selected account instead of the guest profile.
+      await saveSyncBackendConfig();
+
       const user =
         authMode === "register"
           ? await registerUser(username, password)
           : await loginUser(username, password);
 
+      await saveApiConfig();
       setCurrentUser(user);
       setPassword("");
       setConfirmPassword("");
@@ -158,8 +172,8 @@ export const Settings: React.FC = () => {
           : `登录成功，当前账号：${user.username}`
       );
 
+      await runPostAuthSync("当前账号已登录，配置已保存。");
       await loadSettings();
-      schedulePostAuthSync("当前账号已登录，本地数据已切换。");
     } catch (error) {
       setAuthStatus(String(error));
     } finally {
