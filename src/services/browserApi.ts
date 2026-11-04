@@ -29,7 +29,7 @@ const GLOBAL_ONLY_KEYS = new Set([
 ]);
 const GITHUB_API_BASE = "https://api.github.com";
 const GITHUB_API_VERSION = "2022-11-28";
-const GITHUB_USER_AGENT = "Abandon/1.0.1";
+const GITHUB_USER_AGENT = "Abandon/1.0.2";
 const GITHUB_REQUEST_TIMEOUT_MS = 12000;
 
 interface BrowserUser {
