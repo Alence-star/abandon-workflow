@@ -150,7 +150,11 @@ export const Settings: React.FC = () => {
     }
 
     setAuthLoading(true);
-    setAuthStatus("");
+    setAuthStatus(
+      authMode === "login"
+        ? "正在登录；首次登录会读取云端账号，请稍候..."
+        : "正在注册账号..."
+    );
     try {
       // Login on a new device needs the GitHub token before it can discover
       // the remote account. API settings are saved after authentication so
@@ -171,9 +175,9 @@ export const Settings: React.FC = () => {
           ? `注册成功，当前账号：${user.username}`
           : `登录成功，当前账号：${user.username}`
       );
-
-      await runPostAuthSync("当前账号已登录，配置已保存。");
-      await loadSettings();
+      setAuthLoading(false);
+      setSyncStatus("账号已登录，正在后台同步手机端数据...");
+      schedulePostAuthSync("当前账号已登录，配置已保存。");
     } catch (error) {
       setAuthStatus(String(error));
     } finally {
@@ -560,7 +564,7 @@ export const Settings: React.FC = () => {
       <div className="settings-group">
         <div className="settings-group-title">关于</div>
         <div className="settings-about" style={{ padding: "0 16px 16px" }}>
-          <p>Abandon v1.0.2</p>
+          <p>Abandon v1.0.3</p>
           <p>轻量级英语学习桌面与移动端助手</p>
           <p>桌面端基于 Tauri，PWA 端复用同一套 React 界面</p>
           <button className="update-check-btn" onClick={handleCheckUpdate}>

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::env;
 use std::fs;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -13,7 +14,7 @@ use crate::commands::config;
 
 const GITHUB_API_BASE: &str = "https://api.github.com";
 const GITHUB_API_VERSION: &str = "2022-11-28";
-const GITHUB_USER_AGENT: &str = "Abandon/1.0.2";
+const GITHUB_USER_AGENT: &str = "Abandon/1.0.3";
 const GITHUB_REQUEST_TIMEOUT: Duration = Duration::from_secs(12);
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -81,7 +82,20 @@ fn sync_dir(conn: &Connection) -> Result<Option<PathBuf>, String> {
         return Ok(None);
     }
 
-    Ok(Some(PathBuf::from(trimmed)))
+    let path = if trimmed == "~" {
+        env::var_os("HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from(trimmed))
+    } else if let Some(relative) = trimmed.strip_prefix("~/") {
+        env::var_os("HOME")
+            .map(PathBuf::from)
+            .map(|home| home.join(relative))
+            .unwrap_or_else(|| PathBuf::from(trimmed))
+    } else {
+        PathBuf::from(trimmed)
+    };
+
+    Ok(Some(path))
 }
 
 fn github_sync_token(conn: &Connection) -> Result<Option<String>, String> {
@@ -192,10 +206,16 @@ fn resolve_payload_timestamp(payload: &SyncPayload) -> i64 {
         .unwrap_or_default()
 }
 
-fn select_latest_payload(payloads: Vec<SyncPayload>) -> Option<SyncPayload> {
-    payloads
-        .into_iter()
-        .max_by_key(resolve_payload_timestamp)
+fn merge_all_payloads(mut payloads: Vec<SyncPayload>) -> Option<SyncPayload> {
+    payloads.sort_by_key(resolve_payload_timestamp);
+    let mut payloads = payloads.into_iter();
+    let mut merged = payloads.next()?;
+
+    for newer in payloads {
+        merged = merge_sync_payloads(newer, merged);
+    }
+
+    Some(merged)
 }
 
 /// Combine snapshots instead of treating the newest complete export as the only
@@ -784,7 +804,7 @@ pub fn load_remote_snapshot(
         }
     }
 
-    if let Some(payload) = select_latest_payload(payloads) {
+    if let Some(payload) = merge_all_payloads(payloads) {
         return Ok(Some(payload));
     }
 
