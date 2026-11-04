@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
+use std::thread;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
@@ -14,8 +15,9 @@ use crate::commands::config;
 
 const GITHUB_API_BASE: &str = "https://api.github.com";
 const GITHUB_API_VERSION: &str = "2022-11-28";
-const GITHUB_USER_AGENT: &str = "Abandon/1.0.3";
+const GITHUB_USER_AGENT: &str = "Abandon/1.0.4";
 const GITHUB_REQUEST_TIMEOUT: Duration = Duration::from_secs(12);
+const GITHUB_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SyncWordbookEntry {
@@ -280,9 +282,10 @@ async fn github_request(
     body: Option<Value>,
 ) -> Result<reqwest::Response, String> {
     let client = Client::builder()
+        .connect_timeout(GITHUB_CONNECT_TIMEOUT)
         .timeout(GITHUB_REQUEST_TIMEOUT)
         .build()
-        .map_err(|error| format!("GitHub 浜戝悓姝ュ鎴风鍒涘缓澶辫触: {}", error))?;
+        .map_err(|error| format!("创建 GitHub 云同步客户端失败: {}", error))?;
     let mut request = client
         .request(method, url)
         .header("Authorization", format!("Bearer {}", token))
@@ -298,6 +301,17 @@ async fn github_request(
         .send()
         .await
         .map_err(|error| format!("GitHub 云同步请求失败: {}", error))
+}
+
+fn github_status_error(action: &str, status: StatusCode) -> String {
+    if status == StatusCode::UNAUTHORIZED {
+        return "GitHub 云同步令牌已失效，请重新填写有效令牌后再登录。".to_string();
+    }
+    if status == StatusCode::FORBIDDEN {
+        return "GitHub 云同步令牌缺少 Gist 权限，或请求次数受限。".to_string();
+    }
+
+    format!("{}失败（GitHub {}）。", action, status)
 }
 
 async fn github_fetch_gist(
@@ -318,7 +332,7 @@ async fn github_fetch_gist(
         .map_err(|error| format!("读取 GitHub 云同步响应失败: {}", error))?;
 
     if !status.is_success() {
-        return Err(format!("GitHub 云同步失败({}): {}", status, text));
+        return Err(github_status_error("读取 GitHub 云同步数据", status));
     }
 
     serde_json::from_str(&text).map(Some).map_err(|error| {
@@ -361,7 +375,7 @@ async fn github_find_gist_id(
         .map_err(|error| format!("读取 GitHub Gist 列表失败: {}", error))?;
 
     if !status.is_success() {
-        return Err(format!("读取 GitHub Gist 列表失败({}): {}", status, text));
+        return Err(github_status_error("读取 GitHub Gist 列表", status));
     }
 
     let gists: Vec<Value> =
@@ -430,7 +444,7 @@ async fn github_create_gist(
         .map_err(|error| format!("读取 GitHub Gist 创建响应失败: {}", error))?;
 
     if !status.is_success() {
-        return Err(format!("创建 GitHub Gist 失败({}): {}", status, text));
+        return Err(github_status_error("创建 GitHub Gist", status));
     }
 
     let json: Value =
@@ -461,13 +475,13 @@ async fn github_update_gist(
 
     let response = github_request(token, reqwest::Method::PATCH, &url, Some(body)).await?;
     let status = response.status();
-    let text = response
+    let _text = response
         .text()
         .await
         .map_err(|error| format!("读取 GitHub Gist 更新响应失败: {}", error))?;
 
     if !status.is_success() {
-        return Err(format!("更新 GitHub Gist 失败({}): {}", status, text));
+        return Err(github_status_error("更新 GitHub Gist", status));
     }
 
     Ok(())
@@ -706,11 +720,18 @@ fn read_payload_from_backend(
         }
         SyncBackend::GitHubGist(token) => {
             let cached_id = cached_gist_id(conn, username)?;
-            let (payload, gist_id) = tauri::async_runtime::block_on(github_read_payload(
-                token,
-                username,
-                cached_id.clone(),
-            ))?;
+            let token = token.clone();
+            let request_username = username.to_string();
+            let request_cached_id = cached_id.clone();
+            let (payload, gist_id) = thread::spawn(move || {
+                tauri::async_runtime::block_on(github_read_payload(
+                    &token,
+                    &request_username,
+                    request_cached_id,
+                ))
+            })
+            .join()
+            .map_err(|_| "GitHub 云同步任务异常终止，请重试。".to_string())??;
 
             if gist_id.as_deref() != cached_id.as_deref() {
                 update_cached_gist_id(conn, username, gist_id.as_deref())?;
@@ -733,12 +754,20 @@ fn write_payload_to_backend(
         }
         SyncBackend::GitHubGist(token) => {
             let cached_id = cached_gist_id(conn, username)?;
-            let gist_id = tauri::async_runtime::block_on(github_upsert_payload(
-                token,
-                username,
-                cached_id.clone(),
-                payload,
-            ))?;
+            let token = token.clone();
+            let request_username = username.to_string();
+            let request_cached_id = cached_id.clone();
+            let payload = payload.clone();
+            let gist_id = thread::spawn(move || {
+                tauri::async_runtime::block_on(github_upsert_payload(
+                    &token,
+                    &request_username,
+                    request_cached_id,
+                    &payload,
+                ))
+            })
+            .join()
+            .map_err(|_| "GitHub 云同步任务异常终止，请重试。".to_string())??;
 
             if Some(gist_id.as_str()) != cached_id.as_deref() {
                 update_cached_gist_id(conn, username, Some(&gist_id))?;

@@ -29,7 +29,7 @@ const GLOBAL_ONLY_KEYS = new Set([
 ]);
 const GITHUB_API_BASE = "https://api.github.com";
 const GITHUB_API_VERSION = "2022-11-28";
-const GITHUB_USER_AGENT = "Abandon/1.0.3";
+const GITHUB_USER_AGENT = "Abandon/1.0.4";
 const GITHUB_REQUEST_TIMEOUT_MS = 12000;
 
 interface BrowserUser {
@@ -419,18 +419,18 @@ async function githubRequest(
   const timer = window.setTimeout(() => controller.abort(), GITHUB_REQUEST_TIMEOUT_MS);
 
   try {
-  return fetch(url, {
-    ...init,
-    signal: controller.signal,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/vnd.github+json",
-      "Content-Type": "application/json",
-      "User-Agent": GITHUB_USER_AGENT,
-      "X-GitHub-Api-Version": GITHUB_API_VERSION,
-      ...(init?.headers ?? {}),
-    },
-  });
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+        "Content-Type": "application/json",
+        "User-Agent": GITHUB_USER_AGENT,
+        "X-GitHub-Api-Version": GITHUB_API_VERSION,
+        ...(init?.headers ?? {}),
+      },
+    });
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
       throw new Error("GitHub 云同步请求超时，请检查网络或令牌。");
@@ -439,6 +439,16 @@ async function githubRequest(
   } finally {
     window.clearTimeout(timer);
   }
+}
+
+function githubStatusError(action: string, status: number): Error {
+  if (status === 401) {
+    return new Error("GitHub 云同步令牌已失效，请重新填写有效令牌后再登录。");
+  }
+  if (status === 403) {
+    return new Error("GitHub 云同步令牌缺少 Gist 权限，或请求次数受限。");
+  }
+  return new Error(`${action}失败（GitHub ${status}）。`);
 }
 
 async function githubFetchGist(
@@ -450,7 +460,7 @@ async function githubFetchGist(
     return null;
   }
   if (!response.ok) {
-    throw new Error(`GitHub 云同步失败 (${response.status})`);
+    throw githubStatusError("读取 GitHub 云同步数据", response.status);
   }
   return response.json();
 }
@@ -478,7 +488,7 @@ async function findGithubGistId(
 
   const response = await githubRequest(token, `${GITHUB_API_BASE}/gists?per_page=100`);
   if (!response.ok) {
-    throw new Error(`读取 GitHub Gist 列表失败 (${response.status})`);
+    throw githubStatusError("读取 GitHub Gist 列表", response.status);
   }
 
   const gists = (await response.json()) as any[];
@@ -548,7 +558,7 @@ async function writeRemotePayload(
     });
 
     if (!response.ok) {
-      throw new Error(`创建 GitHub Gist 失败 (${response.status})`);
+      throw githubStatusError("创建 GitHub Gist", response.status);
     }
 
     const gist = await response.json();
@@ -567,7 +577,7 @@ async function writeRemotePayload(
     });
 
     if (!response.ok) {
-      throw new Error(`更新 GitHub Gist 失败 (${response.status})`);
+      throw githubStatusError("更新 GitHub Gist", response.status);
     }
   }
 
