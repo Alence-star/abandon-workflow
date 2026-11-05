@@ -230,18 +230,22 @@ export const Settings: React.FC = () => {
         return;
       }
 
-      const yes = await confirmInfo("发现新版本，是否立即更新？", "Abandon 更新");
+      const yes = await confirmInfo(
+        `发现新版本 ${update.version}，是否立即下载并安装？`,
+        "Abandon 更新"
+      );
       if (!yes) {
+        await update.close?.();
         setUpdateStatus("");
         return;
       }
 
-      setUpdateStatus("下载更新中...");
+      setUpdateStatus("下载并安装更新中...");
       await update.downloadAndInstall();
       await relaunchApp();
     } catch (error) {
       setUpdateStatus(`检查失败：${String(error)}`);
-      window.setTimeout(() => setUpdateStatus(""), 5000);
+      window.setTimeout(() => setUpdateStatus(""), 8000);
     }
   }
 
@@ -564,7 +568,7 @@ export const Settings: React.FC = () => {
       <div className="settings-group">
         <div className="settings-group-title">关于</div>
         <div className="settings-about" style={{ padding: "0 16px 16px" }}>
-          <p>Abandon v1.0.4</p>
+          <p>Abandon v1.0.5</p>
           <p>轻量级英语学习桌面与移动端助手</p>
           <p>桌面端基于 Tauri，PWA 端复用同一套 React 界面</p>
           <button className="update-check-btn" onClick={handleCheckUpdate}>

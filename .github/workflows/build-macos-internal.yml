@@ -12,31 +12,39 @@ jobs:
       release_tag: ${{ steps.meta.outputs.release_tag }}
       release_name: ${{ steps.meta.outputs.release_name }}
       release_body: ${{ steps.meta.outputs.release_body }}
+      app_version: ${{ steps.meta.outputs.app_version }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Build release metadata
         id: meta
         run: |
           created_at="$(date -u +"%Y-%m-%d %H:%M UTC")"
           short_sha="${GITHUB_SHA::7}"
+          app_version="$(node -p "require('./package.json').version")"
           release_tag="internal-macos-run-${GITHUB_RUN_NUMBER}"
-          release_name="Abandon macOS Internal Build #${GITHUB_RUN_NUMBER}"
+          release_name="Abandon ${app_version}"
           {
             echo "release_tag=${release_tag}"
             echo "release_name=${release_name}"
+            echo "app_version=${app_version}"
             echo "release_body<<EOF"
-            echo "Automated internal macOS build."
+            echo "Automated signed macOS release."
             echo ""
+            echo "- Version: ${app_version}"
             echo "- Run: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
             echo "- Commit: ${short_sha}"
             echo "- Created: ${created_at}"
             echo ""
             echo "Included assets:"
-            echo "- macOS Apple Silicon (.dmg / .app.tar.gz / signatures)"
-            echo "- macOS Intel (.dmg / .app.tar.gz / signatures)"
+            echo "- Apple Silicon and Intel DMG installers"
+            echo "- Signed Tauri updater bundles"
+            echo "- update.json automatic-update manifest"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Create or reuse prerelease
+      - name: Create draft release
         uses: actions/github-script@v7
         env:
           RELEASE_TAG: ${{ steps.meta.outputs.release_tag }}
@@ -47,25 +55,21 @@ jobs:
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             const tag = process.env.RELEASE_TAG;
-            const name = process.env.RELEASE_NAME;
-            const body = process.env.RELEASE_BODY;
 
             try {
               await github.rest.repos.getReleaseByTag({ owner, repo, tag });
               core.info(`Release ${tag} already exists, will reuse it.`);
             } catch (error) {
-              if (error.status !== 404) {
-                throw error;
-              }
-
+              if (error.status !== 404) throw error;
               await github.rest.repos.createRelease({
                 owner,
                 repo,
                 tag_name: tag,
                 target_commitish: context.sha,
-                name,
-                body,
-                prerelease: true
+                name: process.env.RELEASE_NAME,
+                body: process.env.RELEASE_BODY,
+                draft: true,
+                prerelease: false
               });
             }
 
@@ -80,11 +84,15 @@ jobs:
         include:
           - target: aarch64-apple-darwin
             artifact_name: abandon-macos-internal-aarch64
+            updater_arch: aarch64
           - target: x86_64-apple-darwin
             artifact_name: abandon-macos-internal-x64
+            updater_arch: x64
     env:
       CI: "true"
       APPLE_SIGNING_IDENTITY: "-"
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -109,8 +117,22 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build internal macOS bundles
+      - name: Build signed macOS bundles
         run: npm run tauri build -- --target ${{ matrix.target }} --bundles app,dmg
+
+      - name: Prepare uniquely named updater bundle
+        env:
+          APP_VERSION: ${{ needs.prepare-release.outputs.app_version }}
+          UPDATER_ARCH: ${{ matrix.updater_arch }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          archive="src-tauri/target/${TARGET}/release/bundle/macos/Abandon.app.tar.gz"
+          signature="${archive}.sig"
+          test -s "$archive"
+          test -s "$signature"
+          mkdir -p release-assets
+          cp "$archive" "release-assets/Abandon_${APP_VERSION}_${UPDATER_ARCH}.app.tar.gz"
+          cp "$signature" "release-assets/Abandon_${APP_VERSION}_${UPDATER_ARCH}.app.tar.gz.sig"
 
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
@@ -119,26 +141,71 @@ jobs:
           if-no-files-found: error
           path: |
             src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
-            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.sig
-            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz
-            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.sig
+            release-assets/*
 
       - name: Upload release assets
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.prepare-release.outputs.release_tag }}
+          TARGET: ${{ matrix.target }}
         run: |
-          shopt -s nullglob
-          files=(
-            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
-            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.sig
-            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz
-            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.sig
-          )
+          gh release upload "$RELEASE_TAG" \
+            src-tauri/target/${TARGET}/release/bundle/dmg/*.dmg \
+            release-assets/* \
+            --clobber
 
-          if [ ${#files[@]} -eq 0 ]; then
-            echo "::error::No macOS bundle files found for release upload."
-            exit 1
-          fi
+  publish-update-manifest:
+    needs: [prepare-release, build-macos-internal]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-          gh release upload "$RELEASE_TAG" "${files[@]}" --clobber
+      - name: Download signed updater artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: abandon-macos-internal-*
+          path: downloaded-artifacts
+          merge-multiple: true
+
+      - name: Generate update manifest
+        env:
+          APP_VERSION: ${{ needs.prepare-release.outputs.app_version }}
+          RELEASE_TAG: ${{ needs.prepare-release.outputs.release_tag }}
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const version = process.env.APP_VERSION;
+          const tag = process.env.RELEASE_TAG;
+          const base = `https://github.com/${process.env.GITHUB_REPOSITORY}/releases/download/${tag}`;
+          const asset = (arch) => `Abandon_${version}_${arch}.app.tar.gz`;
+          const signature = (arch) => fs
+            .readFileSync(`downloaded-artifacts/${asset(arch)}.sig`, 'utf8')
+            .trim();
+          const manifest = {
+            version,
+            notes: `Abandon ${version}`,
+            pub_date: new Date().toISOString(),
+            platforms: {
+              'darwin-aarch64': {
+                signature: signature('aarch64'),
+                url: `${base}/${asset('aarch64')}`
+              },
+              'darwin-x86_64': {
+                signature: signature('x64'),
+                url: `${base}/${asset('x64')}`
+              }
+            }
+          };
+          fs.writeFileSync('update.json', JSON.stringify(manifest, null, 2) + '\n');
+          NODE
+
+      - name: Upload manifest and publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.prepare-release.outputs.release_tag }}
+        run: |
+          gh release upload "$RELEASE_TAG" update.json --clobber
+          gh release edit "$RELEASE_TAG" --draft=false --prerelease=false --latest

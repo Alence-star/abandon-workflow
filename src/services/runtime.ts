@@ -33,7 +33,21 @@ export async function checkForUpdates(): Promise<any | null> {
   }
 
   const { check } = await import("@tauri-apps/plugin-updater");
-  return check();
+  let timeoutId: number | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = window.setTimeout(
+      () => reject(new Error("更新服务器响应超时，请稍后重试。")),
+      15000
+    );
+  });
+
+  try {
+    return await Promise.race([check(), timeout]);
+  } finally {
+    if (timeoutId !== undefined) {
+      window.clearTimeout(timeoutId);
+    }
+  }
 }
 
 export async function relaunchApp(): Promise<void> {

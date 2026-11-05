@@ -15,7 +15,7 @@ use crate::commands::config;
 
 const GITHUB_API_BASE: &str = "https://api.github.com";
 const GITHUB_API_VERSION: &str = "2022-11-28";
-const GITHUB_USER_AGENT: &str = "Abandon/1.0.4";
+const GITHUB_USER_AGENT: &str = "Abandon/1.0.5";
 const GITHUB_REQUEST_TIMEOUT: Duration = Duration::from_secs(12);
 const GITHUB_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
