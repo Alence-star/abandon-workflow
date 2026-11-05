@@ -181,9 +181,18 @@ jobs:
           const tag = process.env.RELEASE_TAG;
           const base = `https://github.com/${process.env.GITHUB_REPOSITORY}/releases/download/${tag}`;
           const asset = (arch) => `Abandon_${version}_${arch}.app.tar.gz`;
-          const signature = (arch) => fs
-            .readFileSync(`downloaded-artifacts/${asset(arch)}.sig`, 'utf8')
-            .trim();
+          const signature = (arch) => {
+            const expected = `${asset(arch)}.sig`;
+            const relativePath = fs
+              .readdirSync('downloaded-artifacts', { recursive: true })
+              .find((path) => path.endsWith(expected));
+            if (!relativePath) {
+              throw new Error(`Missing updater signature: ${expected}`);
+            }
+            return fs
+              .readFileSync(`downloaded-artifacts/${relativePath}`, 'utf8')
+              .trim();
+          };
           const manifest = {
             version,
             notes: `Abandon ${version}`,
