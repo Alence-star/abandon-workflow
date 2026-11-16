@@ -288,3 +288,32 @@ pub async fn play_british_pronunciation(
         Err("Audio playback not supported on this platform".into())
     }
 }
+
+#[tauri::command]
+pub async fn play_american_pronunciation(
+    word: String,
+    state: State<'_, SpeechState>,
+) -> Result<(), String> {
+    let trimmed = word.trim().to_string();
+    if trimmed.is_empty() {
+        return Ok(());
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        return start_tracked_speech(&state, || spawn_macos_speech(&trimmed, "Samantha", "170"));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        return start_tracked_speech(&state, || {
+            spawn_windows_speech(&trimmed, false, false)
+        });
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let _ = (trimmed, state);
+        Err("Audio playback not supported on this platform".into())
+    }
+}

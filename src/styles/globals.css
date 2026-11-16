@@ -266,6 +266,7 @@ textarea {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 6px;
 }
@@ -555,6 +556,40 @@ textarea {
 
 .tv-result {
   flex-shrink: 0;
+}
+
+.pronunciation-pair {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pronunciation-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-primary);
+  font-size: 10px;
+  font-weight: 650;
+  cursor: pointer;
+  opacity: 0.9;
+  transition: border-color 0.15s ease, background 0.15s ease, opacity 0.15s ease;
+}
+
+.pronunciation-btn:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-bg);
+  opacity: 1;
+}
+
+.pronunciation-btn-american {
+  color: #a27b57;
 }
 
 .tv-error-banner {
@@ -2039,6 +2074,10 @@ textarea {
 }
 
 .vf-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
   margin-bottom: 12px;
 }
 
@@ -2052,6 +2091,17 @@ textarea {
   font-size: 11px;
   color: var(--color-text-tertiary);
   margin-top: 2px;
+}
+
+.vf-update-badge {
+  flex-shrink: 0;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--color-primary-bg);
+  color: var(--color-primary);
+  font-size: 9px;
+  font-weight: 650;
+  white-space: nowrap;
 }
 
 /* TED Cards */
@@ -2158,4 +2208,21 @@ textarea {
 .vf-read-along:hover {
   border-color: var(--color-primary);
   background: var(--color-primary-bg);
+}
+
+.vf-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.vf-source-link {
+  color: var(--color-text-tertiary);
+  font-size: 10px;
+  text-decoration: none;
+}
+
+.vf-source-link:hover {
+  color: var(--color-primary);
 }

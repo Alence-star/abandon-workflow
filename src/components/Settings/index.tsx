@@ -388,7 +388,7 @@ export const Settings: React.FC = () => {
               }}
             />
             <span className="form-hint">
-              同一令牌配置到桌面端和手机 PWA 后，可通过 GitHub Gist 自动同步同账号的词本和学习记录。
+              同一令牌配置到桌面端和手机 PWA 后，会在启动、回到前台及每 30 秒自动合并同账号的词本和学习记录。
             </span>
           </div>
 
@@ -568,7 +568,7 @@ export const Settings: React.FC = () => {
       <div className="settings-group">
         <div className="settings-group-title">关于</div>
         <div className="settings-about" style={{ padding: "0 16px 16px" }}>
-          <p>Abandon v1.0.5</p>
+          <p>Abandon v1.0.6</p>
           <p>轻量级英语学习桌面与移动端助手</p>
           <p>桌面端基于 Tauri，PWA 端复用同一套 React 界面</p>
           <button className="update-check-btn" onClick={handleCheckUpdate}>

@@ -1,11 +1,11 @@
 import React, { useState } from "react";
 import { useAppStore } from "../../stores/appStore";
 import {
-  playBritishPronunciation,
   removeWord,
   updateWordFamiliarity,
 } from "../../services/api";
 import type { WordbookEntry } from "../../types";
+import { PronunciationButton } from "../common/PronunciationButton";
 
 const FAMILIARITY_LABELS = ["完全不会", "见过", "基本认识", "已掌握"];
 const FAMILIARITY_COLORS = ["#ef4444", "#f97316", "#eab308", "#9ca3af"];
@@ -65,23 +65,9 @@ export const WordDetailView: React.FC = () => {
       <div className="wd-hero">
         <h1 className="wd-word">{entry.word}</h1>
         {entry.phonetic && <div className="wd-phonetic">{entry.phonetic}</div>}
-        <div className="wd-hero-actions">
-          <button
-            className="wd-round-btn"
-            onClick={() => playBritishPronunciation(entry.word)}
-            title="英式发音"
-          >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <polygon points="5 3 19 12 5 21 5 3" />
-            </svg>
-          </button>
+        <div className="wd-hero-actions pronunciation-pair">
+          <PronunciationButton word={entry.word} accent="british" label="英音" size={16} />
+          <PronunciationButton word={entry.word} accent="american" label="美音" size={16} />
         </div>
       </div>
 

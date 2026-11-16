@@ -1,39 +1,43 @@
 import React from "react";
-import { playBritishPronunciation } from "../../services/api";
+import {
+  playAmericanPronunciation,
+  playBritishPronunciation,
+} from "../../services/api";
 
 interface Props {
   word: string;
   size?: number;
+  accent?: "british" | "american";
+  label?: string;
 }
 
-export const PronunciationButton: React.FC<Props> = ({ word, size = 20 }) => {
+export const PronunciationButton: React.FC<Props> = ({
+  word,
+  size = 20,
+  accent = "british",
+  label,
+}) => {
   const handleClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      await playBritishPronunciation(word);
+      if (accent === "british") {
+        await playBritishPronunciation(word);
+      } else {
+        await playAmericanPronunciation(word);
+      }
     } catch (err) {
       console.error("Pronunciation failed:", err);
     }
   };
 
+  const title = accent === "british" ? "英式发音" : "美式发音";
+
   return (
     <button
+      className={`pronunciation-btn pronunciation-btn-${accent}`}
       onClick={handleClick}
-      title="英式发音"
-      style={{
-        background: "none",
-        border: "none",
-        cursor: "pointer",
-        padding: "4px",
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        color: "var(--color-primary)",
-        opacity: 0.8,
-        transition: "opacity 0.2s",
-      }}
-      onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
-      onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.8")}
+      title={title}
+      aria-label={title}
     >
       <svg
         width={size}
@@ -49,6 +53,7 @@ export const PronunciationButton: React.FC<Props> = ({ word, size = 20 }) => {
         <path d="M19.07 4.93a10 10 0 010 14.14" />
         <path d="M15.54 8.46a5 5 0 010 7.07" />
       </svg>
+      {label && <span>{label}</span>}
     </button>
   );
 };

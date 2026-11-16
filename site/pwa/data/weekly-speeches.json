@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-11-16T02:30:46.135Z",
+  "source": "https://feeds.feedburner.com/TEDTalks_audio",
+  "speeches": [
+    {
+      "id": "6af5f8aa43d8776fbbb21b36",
+      "title": "The digital detectives preserving the truth of war",
+      "speaker": "Hadi Al Khatib",
+      "text": "A lot of today’s war footage is shot on phones and posted to platforms that were never meant to permanently store it. Digital archivist and TED Fellow Hadi Al Khatib founded Mnemonic to save these photos and videos before they vanish. Learn how his team is turning people’s social media posts into evidence of crimes that holds up in court — and building an archive that ensures the truth outlasts the war. (Note: this film contains disturbing footage of war.)",
+      "sourceUrl": "https://go.ted.com/hadialkhatib",
+      "audioUrl": "https://sphinx.acast.com/p/open/s/67587e77c705e441797aff96/e/6af5f8aa43d8776fbbb21b36/media.mp3",
+      "publishedAt": "2026-11-14T07:00:00.000Z",
+      "source": "TED Talks Daily"
+    },
+    {
+      "id": "6af5f82c43d8776fbbb21b35",
+      "title": "Could this ancient Greek idea make us better citizens?",
+      "speaker": "Scott Reich",
+      "text": "More than 2,000 years ago in ancient Athens, young citizens were required to complete “ephebeia,” a two-year civic service program that taught them the laws of the city and how to defend their democracy. Author and historian Scott Reich believes this practice reflects something crucial we often forget: citizens aren’t born — they’re trained. In a hopeful talk, he shares his plan to bring a modern version of this program to the United States and explains why it could benefit everyone.",
+      "sourceUrl": "https://go.ted.com/ScottReich",
+      "audioUrl": "https://sphinx.acast.com/p/open/s/67587e77c705e441797aff96/e/6af5f82c43d8776fbbb21b35/media.mp3",
+      "publishedAt": "2026-11-13T15:59:51.000Z",
+      "source": "TED Talks Daily"
+    },
+    {
+      "id": "6af5e8e843d8776fbbb21b34",
+      "title": "How we’ll actually ditch fossil fuels — by the numbers",
+      "speaker": "Michael Liebreich",
+      "text": "Have you heard the clean energy transition is failing? Energy analyst Michael Liebreich says to look again. Using a four-line spreadsheet model of the global energy system, he shows why fossil fuels will inevitably get squeezed out over time — with no bans required. The shift is well underway, he explains: it just looks different than many of us expected.",
+      "sourceUrl": "https://go.ted.com/michaelliebreich",
+      "audioUrl": "https://sphinx.acast.com/p/open/s/67587e77c705e441797aff96/e/6af5e8e843d8776fbbb21b34/media.mp3",
+      "publishedAt": "2026-11-12T16:57:16.000Z",
+      "source": "TED Talks Daily"
+    },
+    {
+      "id": "6af38974ac84158342c9ed3d",
+      "title": "How to repair harm — in relationships and nations",
+      "speaker": "Aria Florant",
+      "text": "Aria Florant cofounded a nonprofit to help accelerate the reparations movement in the US … but less than a year in, her partnership with her own cofounder fell apart. Drawing on what brought the two of them back together — plus lessons from South Africa, Germany and Colombia — she lays out a four-step process for repairing harm between two people or across an entire nation. Most people think reparations are all about money, she says, but true repair goes far beyond the financial.",
+      "sourceUrl": "https://go.ted.com/ariaflorant",
+      "audioUrl": "https://sphinx.acast.com/p/open/s/67587e77c705e441797aff96/e/6af38974ac84158342c9ed3d/media.mp3",
+      "publishedAt": "2026-11-11T16:29:36.000Z",
+      "source": "TED Talks Daily"
+    },
+    {
+      "id": "6af23934e1219d878fcb3b47",
+      "title": "Your phone is disgusting. Here's how to clean it",
+      "speaker": "Lotti Tajouri",
+      "text": "What’s dirtier: your phone or your hands? Molecular biologist Lotti Tajouri says there’s a gaping hole in our hygiene routine. We scrub our hands clean, then reach right for the phone — a warm, humid and mobile home for bacteria and viruses. He explores the unnervingly vibrant microbial world living on your phone and shows how you can keep this “third hand” clean.",
+      "sourceUrl": "https://go.ted.com/lottitajouri",
+      "audioUrl": "https://sphinx.acast.com/p/open/s/67587e77c705e441797aff96/e/6af23934e1219d878fcb3b47/media.mp3",
+      "publishedAt": "2026-11-10T17:34:47.000Z",
+      "source": "TED Talks Daily"
+    },
+    {
+      "id": "6af1eb82e0d89bd85412a56b",
+      "title": "How to rewire your brain — and find your flow",
+      "speaker": "Heather Berlin",
+      "text": "When life gets uncertain, do you grip a little tighter? Neuroscientist Heather Berlin explores a surprising paradox: the harder you try to control everything, the more likely you are to get in your own way. Drawing on brain research and her own struggles with uncertainty, she shares practical ways to let go and make room for creativity, calm and flow.",
+      "sourceUrl": "https://go.ted.com/heatherberlin",
+      "audioUrl": "https://sphinx.acast.com/p/open/s/67587e77c705e441797aff96/e/6af1eb82e0d89bd85412a56b/media.mp3",
+      "publishedAt": "2026-11-09T16:07:29.000Z",
+      "source": "TED Talks Daily"
+    }
+  ]
+}

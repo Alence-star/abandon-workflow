@@ -1,12 +1,13 @@
 {
   "name": "abandon",
   "private": true,
-  "version": "1.0.5",
+  "version": "1.0.6",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "build:pwa": "tsc && vite build --base ./ --outDir site/pwa",
+    "update:speeches": "node scripts/update-weekly-speeches.mjs",
     "preview": "vite preview",
     "tauri": "tauri"
   },

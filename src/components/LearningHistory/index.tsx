@@ -56,6 +56,8 @@ export const LearningHistory: React.FC = () => {
 
   useEffect(() => {
     void load();
+    window.addEventListener("abandon:sync-complete", load);
+    return () => window.removeEventListener("abandon:sync-complete", load);
   }, [load]);
 
   useLayoutEffect(() => {

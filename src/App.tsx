@@ -4,7 +4,9 @@ import { useTheme } from "./hooks/useTheme";
 import {
   analyzeSentence,
   consumePendingTranslation,
+  getCurrentUser,
   getWordInfo,
+  syncNow,
   translateText,
 } from "./services/api";
 import { runtimeLabel, isTauriRuntime } from "./services/runtime";
@@ -112,6 +114,46 @@ const App: React.FC = () => {
   useEffect(() => {
     document.documentElement.dataset.runtime = runtimeLabel;
     document.body.dataset.runtime = runtimeLabel;
+  }, []);
+
+  useEffect(() => {
+    let syncInFlight = false;
+
+    const runAutoSync = async () => {
+      if (syncInFlight || document.visibilityState === "hidden") {
+        return;
+      }
+
+      syncInFlight = true;
+      try {
+        const user = await getCurrentUser();
+        if (user) {
+          await syncNow();
+        }
+      } catch (error) {
+        console.warn("[Abandon] Automatic account sync will retry:", error);
+      } finally {
+        syncInFlight = false;
+      }
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void runAutoSync();
+      }
+    };
+
+    const timer = window.setInterval(() => void runAutoSync(), 30_000);
+    const startupTimer = window.setTimeout(() => void runAutoSync(), 1_500);
+    window.addEventListener("focus", runAutoSync);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      window.clearInterval(timer);
+      window.clearTimeout(startupTimer);
+      window.removeEventListener("focus", runAutoSync);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, []);
 
   useEffect(() => {

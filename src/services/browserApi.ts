@@ -29,8 +29,18 @@ const GLOBAL_ONLY_KEYS = new Set([
 ]);
 const GITHUB_API_BASE = "https://api.github.com";
 const GITHUB_API_VERSION = "2022-11-28";
-const GITHUB_USER_AGENT = "Abandon/1.0.5";
+const GITHUB_USER_AGENT = "Abandon/1.0.6";
 const GITHUB_REQUEST_TIMEOUT_MS = 12000;
+let browserSyncQueue: Promise<void> = Promise.resolve();
+
+function withBrowserSyncLock<T>(operation: () => Promise<T>): Promise<T> {
+  const result = browserSyncQueue.then(operation, operation);
+  browserSyncQueue = result.then(
+    () => undefined,
+    () => undefined
+  );
+  return result;
+}
 
 interface BrowserUser {
   id: number;
@@ -590,6 +600,24 @@ async function writeRemotePayload(
   return true;
 }
 
+async function pullCurrentUserWordbook(state: BrowserState): Promise<BrowserUser | null> {
+  const user = getCurrentUserRecord(state);
+  if (!user || !getGithubToken(state)) {
+    return user;
+  }
+
+  const remotePayload = await loadRemotePayload(state, user.username);
+  if (!remotePayload) {
+    return user;
+  }
+
+  return ensureLocalUserFromPayload(
+    state,
+    mergeSyncPayloads(remotePayload, buildSyncPayload(user)),
+    user.password_sha256
+  );
+}
+
 async function callModelApi(
   state: BrowserState,
   systemPrompt: string,
@@ -933,70 +961,106 @@ export async function analyzeSentence(text: string): Promise<SentenceAnalysis> {
 }
 
 export async function addWord(params: AddWordParams): Promise<void> {
-  const state = readState();
-  const word = params.word.trim();
-  if (!word) {
-    return;
-  }
+  return withBrowserSyncLock(async () => {
+    const state = readState();
+    try {
+      await pullCurrentUserWordbook(state);
+    } catch (error) {
+      console.warn("[Abandon] Could not pull remote wordbook before saving:", error);
+    }
+    const word = params.word.trim();
+    if (!word) {
+      return;
+    }
 
-  const entries = [...getWordbookScope(state)];
-  const existingIndex = entries.findIndex(
-    (entry) => normalizeWord(entry.word) === normalizeWord(word)
-  );
+    const entries = [...getWordbookScope(state)];
+    const existingIndex = entries.findIndex(
+      (entry) => normalizeWord(entry.word) === normalizeWord(word)
+    );
 
-  const nextEntry = createWordbookEntry(state, word, params.translation, {
-    notes: params.notes ?? null,
-    phonetic: params.phonetic ?? "",
-    collocations: params.collocations ?? "",
-    memory_trick: params.memory_trick ?? "",
-  }, existingIndex >= 0 ? entries[existingIndex] : undefined);
+    const nextEntry = createWordbookEntry(state, word, params.translation, {
+      notes: params.notes ?? null,
+      phonetic: params.phonetic ?? "",
+      collocations: params.collocations ?? "",
+      memory_trick: params.memory_trick ?? "",
+    }, existingIndex >= 0 ? entries[existingIndex] : undefined);
 
-  if (existingIndex >= 0) {
-    entries[existingIndex] = nextEntry;
-  } else {
-    entries.unshift(nextEntry);
-  }
+    if (existingIndex >= 0) {
+      entries[existingIndex] = nextEntry;
+    } else {
+      entries.unshift(nextEntry);
+    }
 
-  setWordbookScope(state, entries);
-  const currentUser = getCurrentUserRecord(state);
-  writeState(state);
+    setWordbookScope(state, entries);
+    const currentUser = getCurrentUserRecord(state);
+    writeState(state);
 
-  if (currentUser) {
-    await writeRemotePayload(state, currentUser);
-  }
+    if (currentUser) {
+      try {
+        await writeRemotePayload(state, currentUser);
+        writeState(state);
+      } catch (error) {
+        console.warn("[Abandon] Word saved locally; cloud sync will retry:", error);
+      }
+    }
+  });
 }
 
 export async function removeWord(word: string): Promise<void> {
-  const state = readState();
-  const nextEntries = getWordbookScope(state).filter(
-    (entry) => normalizeWord(entry.word) !== normalizeWord(word)
-  );
-  setWordbookScope(state, nextEntries);
-  const currentUser = getCurrentUserRecord(state);
-  writeState(state);
+  return withBrowserSyncLock(async () => {
+    const state = readState();
+    try {
+      await pullCurrentUserWordbook(state);
+    } catch (error) {
+      console.warn("[Abandon] Could not pull remote wordbook before deleting:", error);
+    }
+    const nextEntries = getWordbookScope(state).filter(
+      (entry) => normalizeWord(entry.word) !== normalizeWord(word)
+    );
+    setWordbookScope(state, nextEntries);
+    const currentUser = getCurrentUserRecord(state);
+    writeState(state);
 
-  if (currentUser) {
-    await writeRemotePayload(state, currentUser);
-  }
+    if (currentUser) {
+      try {
+        await writeRemotePayload(state, currentUser);
+        writeState(state);
+      } catch (error) {
+        console.warn("[Abandon] Word deleted locally; cloud sync will retry:", error);
+      }
+    }
+  });
 }
 
 export async function updateWordFamiliarity(
   word: string,
   familiarity: number
 ): Promise<void> {
-  const state = readState();
-  const nextEntries = getWordbookScope(state).map((entry) =>
-    normalizeWord(entry.word) === normalizeWord(word)
-      ? { ...entry, familiarity }
-      : entry
-  );
-  setWordbookScope(state, nextEntries);
-  const currentUser = getCurrentUserRecord(state);
-  writeState(state);
+  return withBrowserSyncLock(async () => {
+    const state = readState();
+    try {
+      await pullCurrentUserWordbook(state);
+    } catch (error) {
+      console.warn("[Abandon] Could not pull remote wordbook before updating:", error);
+    }
+    const nextEntries = getWordbookScope(state).map((entry) =>
+      normalizeWord(entry.word) === normalizeWord(word)
+        ? { ...entry, familiarity }
+        : entry
+    );
+    setWordbookScope(state, nextEntries);
+    const currentUser = getCurrentUserRecord(state);
+    writeState(state);
 
-  if (currentUser) {
-    await writeRemotePayload(state, currentUser);
-  }
+    if (currentUser) {
+      try {
+        await writeRemotePayload(state, currentUser);
+        writeState(state);
+      } catch (error) {
+        console.warn("[Abandon] Progress saved locally; cloud sync will retry:", error);
+      }
+    }
+  });
 }
 
 export async function listWords(): Promise<WordbookEntry[]> {
@@ -1096,6 +1160,13 @@ export async function playBritishPronunciation(word: string): Promise<void> {
   await speakWithBrowser(word, {
     expressive: false,
     preferBritish: true,
+  });
+}
+
+export async function playAmericanPronunciation(word: string): Promise<void> {
+  await speakWithBrowser(word, {
+    expressive: false,
+    preferBritish: false,
   });
 }
 
@@ -1224,32 +1295,34 @@ export async function getCurrentUser(): Promise<UserSession | null> {
 }
 
 export async function syncNow(): Promise<string> {
-  const state = readState();
-  const user = getCurrentUserRecord(state);
-  if (!user) {
-    throw new Error("请先登录账号，再执行同步。");
-  }
+  return withBrowserSyncLock(async () => {
+    const state = readState();
+    const user = getCurrentUserRecord(state);
+    if (!user) {
+      throw new Error("请先登录账号，再执行同步。");
+    }
 
-  const remotePayload = await loadRemotePayload(state, user.username);
-  const pulled = Boolean(remotePayload);
-  const activeUser = remotePayload
-    ? ensureLocalUserFromPayload(
-        state,
-        mergeSyncPayloads(remotePayload, buildSyncPayload(user)),
-        user.password_sha256
-      )
-    : user;
-  const pushed = await writeRemotePayload(state, activeUser);
-  writeState(state);
+    const remotePayload = await loadRemotePayload(state, user.username);
+    const pulled = Boolean(remotePayload);
+    const activeUser = remotePayload
+      ? ensureLocalUserFromPayload(
+          state,
+          mergeSyncPayloads(remotePayload, buildSyncPayload(user)),
+          user.password_sha256
+        )
+      : user;
+    const pushed = await writeRemotePayload(state, activeUser);
+    writeState(state);
 
-  if (pulled && pushed) {
-    return "已从 GitHub 云同步拉取并刷新当前账号数据。";
-  }
-  if (pulled) {
-    return "已从 GitHub 云同步拉取当前账号数据。";
-  }
-  if (pushed) {
-    return "已将当前账号数据写入 GitHub 云同步。";
-  }
-  return "未配置 GitHub 云同步令牌。";
+    if (pulled && pushed) {
+      return "已从 GitHub 云同步拉取并刷新当前账号数据。";
+    }
+    if (pulled) {
+      return "已从 GitHub 云同步拉取当前账号数据。";
+    }
+    if (pushed) {
+      return "已将当前账号数据写入 GitHub 云同步。";
+    }
+    return "未配置 GitHub 云同步令牌。";
+  });
 }

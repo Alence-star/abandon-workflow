@@ -22,6 +22,12 @@ export const TranslateView: React.FC = () => {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const previousLoading = useRef(store.isLoading);
 
+  const loadTreeWords = useCallback(() => {
+    void listWords()
+      .then((entries) => setTreeWords(entries.slice(0, treePositions.length).map((entry) => entry.word)))
+      .catch(() => setTreeWords([]));
+  }, []);
+
   const {
     isLoading,
     viewMode,
@@ -38,10 +44,10 @@ export const TranslateView: React.FC = () => {
   }, [isLoading]);
 
   useEffect(() => {
-    void listWords()
-      .then((entries) => setTreeWords(entries.slice(0, treePositions.length).map((entry) => entry.word)))
-      .catch(() => setTreeWords([]));
-  }, []);
+    loadTreeWords();
+    window.addEventListener("abandon:sync-complete", loadTreeWords);
+    return () => window.removeEventListener("abandon:sync-complete", loadTreeWords);
+  }, [loadTreeWords]);
 
   useEffect(() => {
     const textarea = inputRef.current;
@@ -180,23 +186,20 @@ export const TranslateView: React.FC = () => {
             <div className="word-header">
               <div className="word-main">
                 <h2 className="word-text">{wordInfo?.word || selectedText || "-"}</h2>
-                <PronunciationButton word={wordInfo?.word || selectedText || ""} size={22} />
-                <button
-                  className="action-btn"
-                  onClick={() => speakText(wordInfo?.word || selectedText || "", false)}
-                  title="朗读单词"
-                >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <polygon points="5 3 19 12 5 21 5 3" />
-                  </svg>
-                </button>
+                <div className="pronunciation-pair" aria-label="单词发音">
+                  <PronunciationButton
+                    word={wordInfo?.word || selectedText || ""}
+                    size={17}
+                    accent="british"
+                    label="英音"
+                  />
+                  <PronunciationButton
+                    word={wordInfo?.word || selectedText || ""}
+                    size={17}
+                    accent="american"
+                    label="美音"
+                  />
+                </div>
               </div>
               {wordInfo?.phonetic && <div className="phonetic">{wordInfo.phonetic}</div>}
             </div>

@@ -77,6 +77,40 @@ fn load_entries_for_user(
     Ok(entries)
 }
 
+fn pull_before_wordbook_mutation(
+    conn: &rusqlite::Connection,
+    user_id: i64,
+) -> Result<Option<String>, String> {
+    if user_id <= 0 {
+        return Ok(None);
+    }
+
+    let username = account_sync::lookup_username(conn, user_id)?;
+    if let Some(username) = username.as_deref() {
+        // Merge the newest remote snapshot first, so a stale device never
+        // overwrites words that were just collected on another device.
+        if let Err(error) = account_sync::pull_user_snapshot(conn, user_id, username) {
+            eprintln!("[Abandon] pre-mutation sync failed: {}", error);
+        }
+    }
+
+    Ok(username)
+}
+
+fn push_after_wordbook_mutation(
+    conn: &rusqlite::Connection,
+    user_id: i64,
+    username: Option<&str>,
+) {
+    if user_id > 0 {
+        if let Some(username) = username {
+            if let Err(error) = account_sync::push_user_snapshot(conn, user_id, username) {
+                eprintln!("[Abandon] post-mutation sync failed: {}", error);
+            }
+        }
+    }
+}
+
 #[tauri::command]
 pub async fn add_word(
     request: AddWordRequest,
@@ -84,6 +118,7 @@ pub async fn add_word(
 ) -> Result<(), String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let user_id = active_scope_user_id(db.conn())?;
+    let username = pull_before_wordbook_mutation(db.conn(), user_id)?;
 
     db.conn()
         .execute(
@@ -109,9 +144,7 @@ pub async fn add_word(
         )
         .map_err(|e| format!("Failed to add word: {}", e))?;
 
-    if user_id > 0 {
-        let _ = account_sync::push_current_user_snapshot(db.conn());
-    }
+    push_after_wordbook_mutation(db.conn(), user_id, username.as_deref());
 
     Ok(())
 }
@@ -120,6 +153,7 @@ pub async fn add_word(
 pub async fn remove_word(word: String, state: State<'_, AppState>) -> Result<(), String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let user_id = active_scope_user_id(db.conn())?;
+    let username = pull_before_wordbook_mutation(db.conn(), user_id)?;
 
     db.conn()
         .execute(
@@ -128,9 +162,7 @@ pub async fn remove_word(word: String, state: State<'_, AppState>) -> Result<(),
         )
         .map_err(|e| format!("Failed to remove word: {}", e))?;
 
-    if user_id > 0 {
-        let _ = account_sync::push_current_user_snapshot(db.conn());
-    }
+    push_after_wordbook_mutation(db.conn(), user_id, username.as_deref());
 
     Ok(())
 }
@@ -143,6 +175,7 @@ pub async fn update_word_familiarity(
 ) -> Result<(), String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let user_id = active_scope_user_id(db.conn())?;
+    let username = pull_before_wordbook_mutation(db.conn(), user_id)?;
 
     let affected = db
         .conn()
@@ -156,9 +189,7 @@ pub async fn update_word_familiarity(
         return Err("Word not found in wordbook".into());
     }
 
-    if user_id > 0 {
-        let _ = account_sync::push_current_user_snapshot(db.conn());
-    }
+    push_after_wordbook_mutation(db.conn(), user_id, username.as_deref());
 
     Ok(())
 }

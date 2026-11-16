@@ -10,6 +10,8 @@ import type {
 import * as browserApi from "./browserApi";
 import { isTauriRuntime, tauriInvoke } from "./runtime";
 
+let activeAccountSync: Promise<string> | null = null;
+
 export interface AddWordParams {
   word: string;
   translation: string;
@@ -137,6 +139,14 @@ export async function playBritishPronunciation(word: string): Promise<void> {
   return tauriInvoke<void>("play_british_pronunciation", { word });
 }
 
+export async function playAmericanPronunciation(word: string): Promise<void> {
+  if (!isTauriRuntime) {
+    return browserApi.playAmericanPronunciation(word);
+  }
+
+  return tauriInvoke<void>("play_american_pronunciation", { word });
+}
+
 export async function getSelectedText(): Promise<string> {
   if (!isTauriRuntime) {
     return browserApi.getSelectedText();
@@ -208,11 +218,23 @@ export async function getCurrentUser(): Promise<UserSession | null> {
 }
 
 export async function syncNow(): Promise<string> {
-  if (!isTauriRuntime) {
-    return browserApi.syncNow();
+  if (activeAccountSync) {
+    return activeAccountSync;
   }
 
-  return tauriInvoke<string>("sync_now");
+  activeAccountSync = (async () => {
+    const result = !isTauriRuntime
+      ? await browserApi.syncNow()
+      : await tauriInvoke<string>("sync_now");
+    window.dispatchEvent(new CustomEvent("abandon:sync-complete"));
+    return result;
+  })();
+
+  try {
+    return await activeAccountSync;
+  } finally {
+    activeAccountSync = null;
+  }
 }
 
 export async function consumePendingTranslation(): Promise<string | null> {

@@ -75,6 +75,7 @@ pub fn run() {
             commands::tts::speak_text,
             commands::tts::stop_speech,
             commands::tts::play_british_pronunciation,
+            commands::tts::play_american_pronunciation,
             commands::hotkey::get_selected_text,
             commands::config::get_config,
             commands::config::get_runtime_paths,
